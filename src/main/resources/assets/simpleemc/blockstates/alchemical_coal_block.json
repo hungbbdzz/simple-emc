@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "simpleemc:block/alchemical_coal_block" }
+  }
+}

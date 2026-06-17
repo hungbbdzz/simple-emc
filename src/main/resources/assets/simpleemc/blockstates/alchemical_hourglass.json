@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "active=false": { "model": "simpleemc:block/alchemical_hourglass" },
+    "active=true": { "model": "simpleemc:block/alchemical_hourglass_active" }
+  }
+}

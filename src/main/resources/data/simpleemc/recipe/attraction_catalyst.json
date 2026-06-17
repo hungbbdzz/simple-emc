@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "R": {
+      "item": "simpleemc:aeternalis_fuel"
+    },
+    "B": {
+      "item": "minecraft:diamond"
+    },
+    "I": {
+      "item": "minecraft:iron_block"
+    },
+    "P": {
+      "item": "simpleemc:philosophers_stone"
+    }
+  },
+  "pattern": [
+    "R B",
+    "R B",
+    "IPI"
+  ],
+  "result": {
+    "count": 1,
+    "id": "simpleemc:attraction_catalyst"
+  }
+}

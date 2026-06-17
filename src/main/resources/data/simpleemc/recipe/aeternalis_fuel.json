@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "F": {
+      "item": "simpleemc:mobius_fuel"
+    },
+    "P": {
+      "item": "simpleemc:philosophers_stone"
+    }
+  },
+  "pattern": [
+    "FFF",
+    "FPF",
+    "FFF"
+  ],
+  "result": {
+    "count": 1,
+    "id": "simpleemc:aeternalis_fuel"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "O": {
+      "item": "minecraft:obsidian"
+    },
+    "S": {
+      "item": "minecraft:stone"
+    },
+    "P": {
+      "item": "simpleemc:philosophers_stone"
+    }
+  },
+  "pattern": [
+    "OSO",
+    "SPS",
+    "OSO"
+  ],
+  "result": {
+    "count": 1,
+    "id": "simpleemc:transmutation_table"
+  }
+}

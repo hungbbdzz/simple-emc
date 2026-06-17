@@ -1,0 +1,33 @@
+{
+  "render_type": "minecraft:translucent",
+  "textures": {
+    "glass": "simpleemc:block/alchemical_hourglass_glass",
+    "clock": "simpleemc:block/alchemical_hourglass_active"
+  },
+  "elements": [
+    {
+      "from": [ 0, 0, 0 ],
+      "to": [ 16, 16, 16 ],
+      "faces": {
+        "down":  { "uv": [ 0, 0, 16, 16 ], "texture": "#glass" },
+        "up":    { "uv": [ 0, 0, 16, 16 ], "texture": "#glass" },
+        "north": { "uv": [ 0, 0, 16, 16 ], "texture": "#glass" },
+        "south": { "uv": [ 0, 0, 16, 16 ], "texture": "#glass" },
+        "west":  { "uv": [ 0, 0, 16, 16 ], "texture": "#glass" },
+        "east":  { "uv": [ 0, 0, 16, 16 ], "texture": "#glass" }
+      }
+    },
+    {
+      "from": [ 3, 2, 7 ],
+      "to": [ 13, 14, 9 ],
+      "faces": {
+        "down":  { "uv": [ 7, 2, 8, 3 ], "texture": "#clock" },
+        "up":    { "uv": [ 7, 2, 8, 3 ], "texture": "#clock" },
+        "north": { "uv": [ 0, 0, 16, 16 ], "texture": "#clock" },
+        "south": { "uv": [ 0, 0, 16, 16 ], "texture": "#clock" },
+        "west":  { "uv": [ 7, 2, 8, 3 ], "texture": "#clock" },
+        "east":  { "uv": [ 7, 2, 8, 3 ], "texture": "#clock" }
+      }
+    }
+  ]
+}
