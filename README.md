@@ -63,6 +63,16 @@ A lightweight, high-performance Minecraft mod built for **NeoForge 1.21.1**. Thi
 ### ⏳ Specialized Machinery
 * **Alchemical Hourglass** - Accelerates random ticks for crops and block entities (furnaces, spawners, etc.)
 
+## 🔧 Compatibility & Mod Integration
+
+### Optional Mod Support
+Simple EMC is compatible with and supports several popular mods:
+
+* **📋 Jade** - Shows EMC item information when hovering over transmutation tables and items
+* **🔍 JEI (Just Enough Items)** - Displays EMC values and transmutation recipes in the recipe viewer
+
+These mods are completely optional but provide enhanced user experience for item lookup and recipe discovery.
+
 ## Building from Source
 
 To compile the mod yourself, make sure you have Java 21 installed, then run the following command in the project root:
