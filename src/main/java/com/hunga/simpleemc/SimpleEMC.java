@@ -46,6 +46,11 @@ public class SimpleEMC {
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(BuiltInRegistries.BLOCK_ENTITY_TYPE, MODID);
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES = DeferredRegister.create(BuiltInRegistries.ENTITY_TYPE, MODID);
+    public static final DeferredRegister<net.minecraft.sounds.SoundEvent> SOUND_EVENTS = DeferredRegister.create(BuiltInRegistries.SOUND_EVENT, MODID);
+
+    // Custom Sounds
+    public static final Supplier<net.minecraft.sounds.SoundEvent> MAGIC_MIRROR_USE_SOUND = SOUND_EVENTS.register("magic_mirror_use",
+        () -> net.minecraft.sounds.SoundEvent.createVariableRangeEvent(ResourceLocation.fromNamespaceAndPath(MODID, "magic_mirror_use")));
 
     // Items - dùng register() thay vì registerSimpleItem() vì cần truyền supplier lambda
     public static final Supplier<Item> PHILOSOPHERS_STONE = ITEMS.register("philosophers_stone",
@@ -56,12 +61,16 @@ public class SimpleEMC {
         () -> new TomeOfKnowledgeItem(new Item.Properties().stacksTo(1)));
     public static final Supplier<Item> KNOWLEDGE_SHARING_BOOK = ITEMS.register("knowledge_sharing_book",
         () -> new KnowledgeSharingBookItem(new Item.Properties().stacksTo(1)));
+    public static final Supplier<Item> WIRELESS_CORE = ITEMS.register("wireless_core",
+        () -> new Item(new Item.Properties()));
     
     // Alchemical Utility Items
     public static final Supplier<Item> ATTRACTION_CATALYST = ITEMS.register("attraction_catalyst",
         () -> new AttractionCatalystItem(new Item.Properties()));
     public static final Supplier<Item> CHALICE_OF_TRANSMUTATION = ITEMS.register("chalice_of_transmutation",
         () -> new ChaliceOfTransmutationItem(new Item.Properties()));
+    public static final Supplier<Item> MAGIC_MIRROR = ITEMS.register("magic_mirror",
+        () -> new MagicMirrorItem(new Item.Properties().stacksTo(1)));
 
 
 
@@ -147,6 +156,7 @@ public class SimpleEMC {
         ATTACHMENT_TYPES.register(modEventBus);
         BLOCK_ENTITIES.register(modEventBus);
         ENTITY_TYPES.register(modEventBus);
+        SOUND_EVENTS.register(modEventBus);
 
         // Register mod bus listeners
         modEventBus.addListener(this::registerPayloads);
@@ -211,11 +221,13 @@ public class SimpleEMC {
             event.accept(TRANSMUTATION_TABLET.get());
             event.accept(TOME_OF_KNOWLEDGE.get());
             event.accept(KNOWLEDGE_SHARING_BOOK.get());
+            event.accept(WIRELESS_CORE.get());
             event.accept(ALCHEMICAL_COAL.get());
             event.accept(MOBIUS_FUEL.get());
             event.accept(AETERNALIS_FUEL.get());
             event.accept(ATTRACTION_CATALYST.get());
             event.accept(CHALICE_OF_TRANSMUTATION.get());
+            event.accept(MAGIC_MIRROR.get());
         }
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(TRANSMUTATION_TABLE_ITEM.get());

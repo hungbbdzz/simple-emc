@@ -24,6 +24,45 @@ A lightweight, high-performance Minecraft mod built for **NeoForge 1.21.1**. Thi
   2. **Mobius Fuel** (8x efficiency of Alchemical Coal)
   3. **Aeternalis Fuel** (8x efficiency of Mobius Fuel)
 
+## 📦 Custom Items & Blocks Added
+
+### 🎯 Core Transmutation Items
+* **Philosophers Stone** - Primary catalyst for transmutation
+* **Transmutation Tablet** - Portable transmutation table
+* **Knowledge Sharing Book** - Share learned EMC with other players
+* **Tome of Knowledge** - Creative-only: teaches all registered EMC items
+* **Wireless Core** - Utility component for advanced machinery
+* **Magic Mirror** - Special item (stackable: 1)
+
+### ⚙️ Alchemical Utility Items
+* **Attraction Catalyst** - Pull nearby dropped items to inventory
+* **Chalice of Transmutation** - Dual-mode: void liquids or accelerate crops
+
+### ⛽ Alchemical Fuels (3 Tiers)
+1. **Alchemical Coal** (EMC: 1024)
+   - Crafted from regular coal + alchemical essence
+   - 8x efficiency of normal coal
+
+2. **Mobius Fuel** (EMC: 8192)
+   - Compressed alchemical coal
+   - 8x efficiency of Alchemical Coal
+
+3. **Aeternalis Fuel** (EMC: 65536)
+   - Ultimate fuel tier
+   - 8x efficiency of Mobius Fuel
+
+### 📦 Alchemical Fuel Blocks (Compressed Storage)
+* **Alchemical Coal Block** (EMC: 9216) - Stores 9 Alchemical Coal
+* **Mobius Fuel Block** (EMC: 73728) - Stores 9 Mobius Fuel
+* **Aeternalis Fuel Block** (EMC: 589824) - Stores 9 Aeternalis Fuel
+
+### 🏪 Transmutation Blocks
+* **Transmutation Table** - Primary block for learning and transmuting items
+* **Arcane Transmutation Table** - Advanced tier with 2x inventory + built-in crafting grid
+
+### ⏳ Specialized Machinery
+* **Alchemical Hourglass** - Accelerates random ticks for crops and block entities (furnaces, spawners, etc.)
+
 ## Building from Source
 
 To compile the mod yourself, make sure you have Java 21 installed, then run the following command in the project root:

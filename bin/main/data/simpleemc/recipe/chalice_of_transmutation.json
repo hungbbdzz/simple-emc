@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "item": "minecraft:gold_block"
+    },
+    "F": {
+      "item": "simpleemc:aeternalis_fuel"
+    },
+    "P": {
+      "item": "simpleemc:philosophers_stone"
+    }
+  },
+  "pattern": [
+    "GFG",
+    " P ",
+    "GGG"
+  ],
+  "result": {
+    "count": 1,
+    "id": "simpleemc:chalice_of_transmutation"
+  }
+}

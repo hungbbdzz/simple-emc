@@ -45,42 +45,92 @@ public class ChaliceOfTransmutationItem extends Item {
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
         
-        // Void Mode Liquid Collection
+        // Void Mode Liquid Collection (Sponge-like absorption)
         if (getMode(stack) == 0) {
-            BlockHitResult hitResult = getPlayerPOVHitResult(level, player, ClipContext.Fluid.SOURCE_ONLY);
+            BlockHitResult hitResult = getPlayerPOVHitResult(level, player, ClipContext.Fluid.ANY);
             if (hitResult.getType() == HitResult.Type.BLOCK) {
                 BlockPos pos = hitResult.getBlockPos();
-                FluidState fluidState = level.getFluidState(pos);
-                
-                if (fluidState.isSource()) {
+                FluidState centerFluid = level.getFluidState(pos);
+                if (!centerFluid.isEmpty()) {
                     if (!level.isClientSide()) {
+                        int radius = 4;
+                        long waterCount = 0;
+                        long lavaCount = 0;
+                        long otherCount = 0;
+                        
+                        // First pass: scan and count
+                        for (int dx = -radius; dx <= radius; dx++) {
+                            for (int dy = -radius; dy <= radius; dy++) {
+                                for (int dz = -radius; dz <= radius; dz++) {
+                                    BlockPos targetPos = pos.offset(dx, dy, dz);
+                                    FluidState fluidState = level.getFluidState(targetPos);
+                                    if (!fluidState.isEmpty()) {
+                                        if (fluidState.is(Fluids.LAVA) || fluidState.is(Fluids.FLOWING_LAVA)) {
+                                            lavaCount++;
+                                        } else if (fluidState.is(Fluids.WATER) || fluidState.is(Fluids.FLOWING_WATER)) {
+                                            waterCount++;
+                                        } else {
+                                            otherCount++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        long totalCount = waterCount + lavaCount + otherCount;
+                        if (totalCount == 0) {
+                            return InteractionResultHolder.pass(stack);
+                        }
+                        
+                        // Flat 200 EMC activation cost + 10 EMC per water, 50 EMC per lava, 20 EMC per other
+                        long totalCost = 200 + (waterCount * 10) + (lavaCount * 50) + (otherCount * 20);
+                        
                         long currentEMC = getStoredEMC(stack);
-                        if (currentEMC >= MAX_EMC) {
-                            player.displayClientMessage(Component.literal("Chalice is full of EMC! Cannot void liquids."), true);
+                        while (currentEMC < totalCost) {
+                            long fuelVal = EMCRegistry.consumeFuelFromInventory(player);
+                            if (fuelVal <= 0) {
+                                break;
+                            }
+                            currentEMC += fuelVal;
+                        }
+                        
+                        if (currentEMC < totalCost) {
+                            player.displayClientMessage(Component.literal("§cNot enough alchemical energy! Need §e" + totalCost + " EMC §8(Have " + currentEMC + " EMC)"), true);
+                            level.playSound(null, pos.getX(), pos.getY(), pos.getZ(),
+                                SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.5F, 1.2F);
                             return InteractionResultHolder.fail(stack);
                         }
-
-                        long gained = 0;
-                        if (fluidState.is(Fluids.WATER)) {
-                            level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+                        
+                        // Deduct cost
+                        setStoredEMC(stack, currentEMC - totalCost);
+                        
+                        // Second pass: actually clear
+                        for (int dx = -radius; dx <= radius; dx++) {
+                            for (int dy = -radius; dy <= radius; dy++) {
+                                for (int dz = -radius; dz <= radius; dz++) {
+                                    BlockPos targetPos = pos.offset(dx, dy, dz);
+                                    FluidState fluidState = level.getFluidState(targetPos);
+                                    if (!fluidState.isEmpty()) {
+                                        level.setBlock(targetPos, Blocks.AIR.defaultBlockState(), 3);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Play sounds & send particles
+                        level.playSound(null, pos.getX(), pos.getY(), pos.getZ(),
+                            SoundEvents.SPONGE_ABSORB, SoundSource.BLOCKS, 1.2F, 1.0F);
+                        if (lavaCount > 0) {
                             level.playSound(null, pos.getX(), pos.getY(), pos.getZ(),
-                                SoundEvents.BUCKET_EMPTY, SoundSource.BLOCKS, 1.0F, 1.0F);
-                            gained = 2;
-                        } else if (fluidState.is(Fluids.LAVA)) {
-                            level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
-                            level.playSound(null, pos.getX(), pos.getY(), pos.getZ(),
-                                SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.5F, 2.6F);
+                                SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 1.0F, 0.8F);
                             ((ServerLevel) level).sendParticles(ParticleTypes.LARGE_SMOKE, 
-                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 8, 0.25, 0.25, 0.25, 0.0);
-                            gained = 64;
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 20, 1.0, 1.0, 1.0, 0.0);
                         }
-
-                        if (gained > 0) {
-                            long newEMC = Math.min(MAX_EMC, currentEMC + gained);
-                            setStoredEMC(stack, newEMC);
-                            player.displayClientMessage(Component.literal("Voided liquid! (+§e" + gained + " EMC§f, Total: §e" + newEMC + " EMC§f)"), true);
-                            return InteractionResultHolder.success(stack);
-                        }
+                        ((ServerLevel) level).sendParticles(ParticleTypes.SPLASH, 
+                            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 30, 1.5, 1.5, 1.5, 0.1);
+                        
+                        player.displayClientMessage(Component.literal("§bVoided " + totalCount + " fluid blocks! (-§e" + totalCost + " EMC§f)"), true);
+                        return InteractionResultHolder.success(stack);
                     } else {
                         return InteractionResultHolder.success(stack);
                     }
@@ -177,7 +227,7 @@ public class ChaliceOfTransmutationItem extends Item {
         int mode = getMode(stack);
         long emc = getStoredEMC(stack);
         
-        tooltipComponents.add(Component.literal("§7Mode: " + (mode == 0 ? "§bVoid Mode (Clear liquids)" : "§aGrowth Mode (Tick crops)")));
+        tooltipComponents.add(Component.literal("§7Mode: " + (mode == 0 ? "§bVoid Mode (Sponge clear)" : "§aGrowth Mode (Tick crops)")));
         tooltipComponents.add(Component.literal("§7Charge: §e" + String.format("%,d", emc) + " EMC"));
         tooltipComponents.add(Component.translatable("item.simpleemc.chalice_of_transmutation.tooltip1"));
         tooltipComponents.add(Component.translatable("item.simpleemc.chalice_of_transmutation.tooltip2"));

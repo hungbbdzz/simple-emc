@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "simpleemc:block/transmutation_table" }
+  }
+}

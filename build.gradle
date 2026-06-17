@@ -88,3 +88,40 @@ jar {
     destinationDirectory = file("../mods")
 }
 
+tasks.register('inspectPlayer') {
+    doLast {
+        def urls = configurations.compileClasspath.files.collect { it.toURI().toURL() }
+        def loader = new URLClassLoader(urls as URL[], ClassLoader.systemClassLoader)
+        try {
+            def classesToInspect = [
+                'net.minecraft.world.entity.player.Player',
+                'net.minecraft.server.level.ServerPlayer',
+                'net.minecraft.world.level.block.BedBlock',
+                'net.minecraft.world.level.block.RespawnAnchorBlock',
+                'net.minecraft.world.level.portal.DimensionTransition'
+            ]
+            classesToInspect.each { className ->
+                try {
+                    def clazz = loader.loadClass(className)
+                    println "CLASS_FOUND: " + clazz.name
+                    clazz.declaredMethods.each { method ->
+                        def name = method.name.toLowerCase()
+                        if (clazz.name.contains("DimensionTransition") || name.contains("respawn") || name.contains("spawn") || name.contains("bed") || name.contains("anchor") || name.contains("find")) {
+                            println "METHOD: " + method
+                        }
+                    }
+                    if (clazz.name.contains("DimensionTransition")) {
+                        clazz.declaredFields.each { field ->
+                            println "FIELD: " + field
+                        }
+                    }
+                } catch (Exception ex) {
+                    println "Could not load class " + className + ": " + ex.message
+                }
+            }
+        } catch (Exception e) {
+            println "Error: " + e.message
+        }
+    }
+}
+
