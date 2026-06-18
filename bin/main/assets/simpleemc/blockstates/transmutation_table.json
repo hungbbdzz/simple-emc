@@ -1,5 +1,8 @@
 {
   "variants": {
-    "": { "model": "simpleemc:block/transmutation_table" }
+    "facing=north": { "model": "simpleemc:block/transmutation_table" },
+    "facing=east": { "model": "simpleemc:block/transmutation_table", "y": 90 },
+    "facing=south": { "model": "simpleemc:block/transmutation_table", "y": 180 },
+    "facing=west": { "model": "simpleemc:block/transmutation_table", "y": 270 }
   }
 }

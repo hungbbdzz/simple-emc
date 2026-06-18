@@ -1,6 +1,7 @@
 {
   "render_type": "minecraft:translucent",
   "textures": {
+    "particle": "simpleemc:block/alchemical_hourglass_glass",
     "glass": "simpleemc:block/alchemical_hourglass_glass",
     "clock": "simpleemc:block/alchemical_hourglass_active"
   },
