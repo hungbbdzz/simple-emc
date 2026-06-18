@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "B": {
+      "item": "minecraft:diamond_block"
+    },
+    "W": {
+      "item": "simpleemc:wireless_core"
+    }
+  },
+  "pattern": [
+    " DB",
+    "DWD",
+    "BD "
+  ],
+  "result": {
+    "count": 1,
+    "item": "simpleemc:magic_mirror"
+  }
+}

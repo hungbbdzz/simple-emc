@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "simpleemc:block/arcane_transmutation_table" },
+    "facing=east": { "model": "simpleemc:block/arcane_transmutation_table", "y": 90 },
+    "facing=south": { "model": "simpleemc:block/arcane_transmutation_table", "y": 180 },
+    "facing=west": { "model": "simpleemc:block/arcane_transmutation_table", "y": 270 }
+  }
+}

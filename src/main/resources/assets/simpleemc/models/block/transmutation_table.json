@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "simpleemc:block/transmutation_table_side",
+    "down": "simpleemc:block/transmutation_table_bottom",
+    "up": "simpleemc:block/transmutation_table_top",
+    "north": "simpleemc:block/transmutation_table_side",
+    "east": "simpleemc:block/transmutation_table_side",
+    "south": "simpleemc:block/transmutation_table_side",
+    "west": "simpleemc:block/transmutation_table_side"
+  }
+}

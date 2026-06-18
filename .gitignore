@@ -1,0 +1,23 @@
+# Gradle build outputs
+.gradle/
+build/
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+
+# Run directories (game data logs and configs during testing)
+run/
+latest.log
+*.log
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini

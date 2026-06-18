@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "I": {
+      "item": "minecraft:iron_block"
+    },
+    "R": {
+      "item": "minecraft:redstone_block"
+    },
+    "D": {
+      "item": "minecraft:diamond_block"
+    },
+    "P": {
+      "item": "simpleemc:philosophers_stone"
+    }
+  },
+  "pattern": [
+    "I I",
+    "R D",
+    "RPD"
+  ],
+  "result": {
+    "count": 1,
+    "item": "simpleemc:attraction_catalyst"
+  }
+}

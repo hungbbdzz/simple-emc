@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "W": {
+      "item": "simpleemc:wireless_core"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "T": {
+      "item": "simpleemc:transmutation_table"
+    }
+  },
+  "pattern": [
+    "EWE",
+    "WTW",
+    "EWE"
+  ],
+  "result": {
+    "count": 1,
+    "item": "simpleemc:transmutation_tablet"
+  }
+}
