@@ -96,8 +96,9 @@ public class EMCConfigScreen extends Screen {
 
         Button resetBtn = Button.builder(Component.literal("Reset"), btn -> {
             if (this.selectedItem != null) {
-                this.pendingEdits.put(this.selectedItem, 0L);
-                this.emcEditBox.setValue("0");
+                long defaultVal = EMCRegistry.getDefaultEMC(this.selectedItem);
+                this.pendingEdits.put(this.selectedItem, defaultVal);
+                this.emcEditBox.setValue(String.valueOf(defaultVal));
             }
         }).bounds(this.guiLeft + 145, this.guiTop + 152, 45, 20).build();
         resetBtn.visible = false;
@@ -113,7 +114,7 @@ public class EMCConfigScreen extends Screen {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null && mc.getConnection() != null) {
-            EMCRegistry.calculateAllRecipeEMC(
+            EMCRegistry.clientReloadAndRecalculate(
                 mc.getConnection().getRecipeManager(),
                 mc.level.registryAccess()
             );

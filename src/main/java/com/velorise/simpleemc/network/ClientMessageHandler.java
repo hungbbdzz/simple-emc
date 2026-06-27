@@ -33,17 +33,18 @@ public class ClientMessageHandler {
     }
 
     public static void handleSyncCustomEMC(SyncCustomEMCMessage msg) {
+        Map<Item, Long> clientOverrides = new HashMap<>();
+        msg.getOverrides().forEach((rl, val) -> {
+            Item item = BuiltInRegistries.ITEM.get(rl);
+            if (item != null && item != Items.AIR) {
+                clientOverrides.put(item, val);
+            }
+        });
+        EMCRegistry.setClientSyncedOverrides(clientOverrides);
+
         ClientLevel level = Minecraft.getInstance().level;
         if (level != null) {
-            Map<Item, Long> clientOverrides = new HashMap<>();
-            msg.getOverrides().forEach((rl, val) -> {
-                Item item = BuiltInRegistries.ITEM.get(rl);
-                if (item != null && item != Items.AIR) {
-                    clientOverrides.put(item, val);
-                }
-            });
-            EMCRegistry.applyCustomOverridesAndRecalculate(
-                clientOverrides,
+            EMCRegistry.clientReloadAndRecalculate(
                 level.getRecipeManager(),
                 level.registryAccess()
             );

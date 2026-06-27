@@ -20,9 +20,23 @@ import java.util.ArrayList;
 public class EMCRegistry {
     private static final Map<Item, Long> EMC_MAP = new HashMap<>();
     private static final Map<Item, Long> STATIC_EMC_MAP = new HashMap<>();
+    private static final Map<Item, Long> DEFAULT_EMC_MAP = new HashMap<>();
+    private static Map<Item, Long> clientSyncedOverrides = null;
     private static final java.io.File CUSTOM_EMC_FILE = new java.io.File("config/simpleemc/custom_emc.json");
     private static final java.io.File RECIPE_CACHE_FILE = new java.io.File("config/simpleemc/recipe_emc_cache.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    public static long getDefaultEMC(Item item) {
+        return DEFAULT_EMC_MAP.getOrDefault(item, 0L);
+    }
+
+    public static void setClientSyncedOverrides(Map<Item, Long> overrides) {
+        clientSyncedOverrides = overrides;
+    }
+
+    public static void clearClientSyncedOverrides() {
+        clientSyncedOverrides = null;
+    }
 
     static {
         // --- 1. Blocks & Basic Materials ---
@@ -457,6 +471,40 @@ public class EMCRegistry {
         register(Items.NETHERITE_LEGGINGS, 172033L);
         register(Items.NETHERITE_BOOTS, 147457L);
 
+        // --- 12. Survival Items from simpleemc_missing_emc.txt ---
+        register(Items.CHORUS_PLANT, 64L);
+        register(Items.CHORUS_FLOWER, 96L);
+        register(Items.CARVED_PUMPKIN, 16L);
+        register(Items.JACK_O_LANTERN, 24L);
+        register(Items.LILY_PAD, 16L);
+        register(Items.SCULK, 4L);
+        register(Items.SCULK_VEIN, 1L);
+        register(Items.SCULK_CATALYST, 128L);
+        register(Items.SCULK_SENSOR, 256L);
+        register(Items.CALIBRATED_SCULK_SENSOR, 512L);
+        register(Items.SCULK_SHRIEKER, 512L);
+        register(Items.END_STONE, 4L);
+        register(Items.END_STONE_BRICKS, 4L);
+        register(Items.TURTLE_EGG, 192L);
+        register(Items.SNIFFER_EGG, 1024L);
+        register(Items.WATER_BUCKET, 768L);
+        register(Items.LAVA_BUCKET, 832L);
+        register(Items.POWDER_SNOW_BUCKET, 768L);
+        register(Items.MILK_BUCKET, 832L);
+        register(Items.PUFFERFISH_BUCKET, 832L);
+        register(Items.SALMON_BUCKET, 832L);
+        register(Items.COD_BUCKET, 832L);
+        register(Items.TROPICAL_FISH_BUCKET, 832L);
+        register(Items.COD, 64L);
+        register(Items.COOKED_COD, 64L);
+        register(Items.SALMON, 64L);
+        register(Items.COOKED_SALMON, 64L);
+        register(Items.TROPICAL_FISH, 64L);
+        register(Items.PUFFERFISH, 64L);
+        register(Items.CAKE, 1024L);
+        register(Items.SHROOMLIGHT, 64L);
+        register(Items.WARPED_WART_BLOCK, 96L);
+
         // Double all values statically to support fractional recipes (e.g. Slabs)
         for (Map.Entry<Item, Long> entry : EMC_MAP.entrySet()) {
             entry.setValue(entry.getValue() * 2);
@@ -464,6 +512,7 @@ public class EMCRegistry {
 
         // Backup static map
         STATIC_EMC_MAP.putAll(EMC_MAP);
+        DEFAULT_EMC_MAP.putAll(STATIC_EMC_MAP);
 
         // Load cached recipe EMC from a previous session
         loadRecipeCache();
@@ -538,17 +587,17 @@ public class EMCRegistry {
         }
     }
 
-    public static void saveCustomEMC(Map<Item, Long> overrides) {
+    public static void saveCustomEMC(java.util.Map<Item, Long> overrides) {
         try {
             java.io.File parent = CUSTOM_EMC_FILE.getParentFile();
             if (parent != null && !parent.exists()) {
                 parent.mkdirs();
             }
             
-            Map<String, Long> jsonMap = new HashMap<>();
+            java.util.Map<String, Long> jsonMap = new java.util.HashMap<>();
             if (CUSTOM_EMC_FILE.exists()) {
                 try (java.io.FileReader reader = new java.io.FileReader(CUSTOM_EMC_FILE)) {
-                    Map<String, Long> existing = GSON.fromJson(reader, new TypeToken<Map<String, Long>>(){}.getType());
+                    java.util.Map<String, Long> existing = GSON.fromJson(reader, new TypeToken<java.util.Map<String, Long>>(){}.getType());
                     if (existing != null) {
                         jsonMap.putAll(existing);
                     }
@@ -560,7 +609,8 @@ public class EMCRegistry {
             for (Map.Entry<Item, Long> entry : overrides.entrySet()) {
                 String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(entry.getKey()).toString();
                 long val = entry.getValue();
-                if (val <= 0) {
+                long defaultVal = getDefaultEMC(entry.getKey());
+                if (val <= 0 || val == defaultVal) {
                     jsonMap.remove(key);
                 } else {
                     jsonMap.put(key, val);
@@ -575,18 +625,37 @@ public class EMCRegistry {
         }
     }
 
-    public static void reloadAndRecalculate(RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
+    public static void reloadAndRecalculate(net.minecraft.world.item.crafting.RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
+        DEFAULT_EMC_MAP.clear();
+        DEFAULT_EMC_MAP.putAll(STATIC_EMC_MAP);
+        calculateRecipeEMCForMap(DEFAULT_EMC_MAP, recipeManager, registries, false);
+
         EMC_MAP.clear();
         EMC_MAP.putAll(STATIC_EMC_MAP);
         loadCustomEMC();
-        calculateAllRecipeEMC(recipeManager, registries);
+        calculateRecipeEMCForMap(EMC_MAP, recipeManager, registries, true);
     }
- 
-    public static void applyCustomOverridesAndRecalculate(Map<Item, Long> overrides, RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
+
+    public static void clientReloadAndRecalculate(net.minecraft.world.item.crafting.RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
+        DEFAULT_EMC_MAP.clear();
+        DEFAULT_EMC_MAP.putAll(STATIC_EMC_MAP);
+        calculateRecipeEMCForMap(DEFAULT_EMC_MAP, recipeManager, registries, false);
+
+        EMC_MAP.clear();
+        EMC_MAP.putAll(STATIC_EMC_MAP);
+        if (clientSyncedOverrides != null) {
+            EMC_MAP.putAll(clientSyncedOverrides);
+        } else {
+            loadCustomEMC();
+        }
+        calculateRecipeEMCForMap(EMC_MAP, recipeManager, registries, false);
+    }
+
+    public static void applyCustomOverridesAndRecalculate(Map<Item, Long> overrides, net.minecraft.world.item.crafting.RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
         EMC_MAP.clear();
         EMC_MAP.putAll(STATIC_EMC_MAP);
         overrides.forEach(EMC_MAP::put);
-        calculateAllRecipeEMC(recipeManager, registries);
+        calculateRecipeEMCForMap(EMC_MAP, recipeManager, registries, false);
     }
 
     public static Map<ResourceLocation, Long> getFullCustomOverrides() {
@@ -644,12 +713,17 @@ public class EMCRegistry {
     }
 
     public static void calculateAllRecipeEMC(RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
+        calculateRecipeEMCForMap(EMC_MAP, recipeManager, registries, true);
+    }
+
+    public static void calculateRecipeEMCForMap(Map<Item, Long> map, RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries, boolean shouldSaveCache) {
         boolean changed = true;
         int maxIterations = 10;
         int iterations = 0;
 
+        var craftingRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
         List<Recipe<?>> allRecipes = new ArrayList<>();
-        allRecipes.addAll(recipeManager.getAllRecipesFor(RecipeType.CRAFTING));
+        allRecipes.addAll(craftingRecipes);
         allRecipes.addAll(recipeManager.getAllRecipesFor(RecipeType.SMELTING));
         allRecipes.addAll(recipeManager.getAllRecipesFor(RecipeType.BLASTING));
         allRecipes.addAll(recipeManager.getAllRecipesFor(RecipeType.SMOKING));
@@ -660,13 +734,12 @@ public class EMCRegistry {
             changed = false;
             iterations++;
 
-            // 1. Forward calculation
             for (Recipe<?> recipe : allRecipes) {
                 ItemStack resultStack = recipe.getResultItem(registries);
                 if (resultStack.isEmpty()) continue;
 
                 Item resultItem = resultStack.getItem();
-                if (hasEMC(resultItem)) {
+                if (map.containsKey(resultItem)) {
                     continue;
                 }
 
@@ -681,7 +754,7 @@ public class EMCRegistry {
 
                     boolean isCatalyst = false;
                     for (ItemStack matchingStack : ingredient.getItems()) {
-                        if (matchingStack.getItem() == SimpleEMC.PHILOSOPHERS_STONE.get()) {
+                        if (matchingStack.getItem() == com.velorise.simpleemc.SimpleEMC.PHILOSOPHERS_STONE.get()) {
                             isCatalyst = true;
                             break;
                         }
@@ -690,7 +763,7 @@ public class EMCRegistry {
 
                     long ingredientEMC = 0;
                     for (ItemStack matchingStack : ingredient.getItems()) {
-                        long emc = getEMC(matchingStack.getItem());
+                        long emc = map.getOrDefault(matchingStack.getItem(), 0L);
                         if (emc > 0) {
                             ingredientEMC = emc;
                             break;
@@ -709,19 +782,18 @@ public class EMCRegistry {
                     int count = resultStack.getCount();
                     if (count > 0) {
                         long calculatedEMC = Math.max(1L, totalEMC / count);
-                        register(resultItem, calculatedEMC);
+                        map.put(resultItem, calculatedEMC);
                         changed = true;
                     }
                 }
             }
 
-            // 2. Backward calculation
             for (Recipe<?> recipe : allRecipes) {
                 ItemStack resultStack = recipe.getResultItem(registries);
                 if (resultStack.isEmpty()) continue;
 
                 Item resultItem = resultStack.getItem();
-                long outputEMC = getEMC(resultItem);
+                long outputEMC = map.getOrDefault(resultItem, 0L);
                 if (outputEMC == 0) {
                     continue;
                 }
@@ -738,7 +810,7 @@ public class EMCRegistry {
 
                     boolean isCatalyst = false;
                     for (ItemStack matchingStack : ingredient.getItems()) {
-                        if (matchingStack.getItem() == SimpleEMC.PHILOSOPHERS_STONE.get()) {
+                        if (matchingStack.getItem() == com.velorise.simpleemc.SimpleEMC.PHILOSOPHERS_STONE.get()) {
                             isCatalyst = true;
                             break;
                         }
@@ -776,8 +848,8 @@ public class EMCRegistry {
                     long inputEMC = totalOutputEMC / inputCount;
                     if (inputEMC > 0) {
                         for (Item item : commonItems) {
-                            if (!hasEMC(item)) {
-                                register(item, inputEMC);
+                            if (!map.containsKey(item)) {
+                                map.put(item, inputEMC);
                                 changed = true;
                             }
                         }
@@ -790,32 +862,34 @@ public class EMCRegistry {
         for (Item item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
             String path = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath();
             if (path.endsWith("_concrete")) {
-                if (!hasEMC(item)) {
+                if (!map.containsKey(item)) {
                     String powderPath = path + "_powder";
                     Item powderItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
                         new ResourceLocation("minecraft", powderPath)
                     );
-                    if (powderItem != Items.AIR && hasEMC(powderItem)) {
-                        register(item, getEMC(powderItem));
+                    if (powderItem != Items.AIR && map.containsKey(powderItem)) {
+                        map.put(item, map.getOrDefault(powderItem, 0L));
                     }
                 }
             }
         }
 
         // 4. Special handling for Colored Shulker Boxes
-        long normalShulkerEMC = getEMC(Items.SHULKER_BOX);
+        long normalShulkerEMC = map.getOrDefault(Items.SHULKER_BOX, 0L);
         if (normalShulkerEMC > 0) {
             for (Item item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
                 String path = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath();
                 if (path.endsWith("_shulker_box") && !path.equals("shulker_box")) {
-                    if (!hasEMC(item)) {
-                        register(item, normalShulkerEMC);
+                    if (!map.containsKey(item)) {
+                        map.put(item, normalShulkerEMC);
                     }
                 }
             }
         }
 
-        saveRecipeCache();
+        if (shouldSaveCache) {
+            saveRecipeCache();
+        } 
     }
 
     public static long consumeFuelFromInventory(net.minecraft.world.entity.player.Player player) {

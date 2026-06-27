@@ -302,9 +302,9 @@ public class SimpleEMC {
                             }
                             writer.close();
                             final int finalCount = count;
-                            context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("Đã xuất " + finalCount + " items chưa có EMC ra file " + file.getAbsolutePath()), true);
+                            context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("Exported " + finalCount + " items without EMC to file " + file.getAbsolutePath()), true);
                         } catch (Exception e) {
-                            context.getSource().sendFailure(net.minecraft.network.chat.Component.literal("Lỗi khi xuất file: " + e.getMessage()));
+                            context.getSource().sendFailure(net.minecraft.network.chat.Component.literal("Error exporting file: " + e.getMessage()));
                         }
                         return 1;
                     })
@@ -388,9 +388,8 @@ public class SimpleEMC {
                 registries = mc.getConnection().registryAccess();
             }
             if (registries != null) {
-                System.out.println("[SimpleEMC] RecipesUpdatedEvent – calculating recipe EMC...");
-                EMCRegistry.calculateAllRecipeEMC(event.getRecipeManager(), registries);
-                System.out.println("[SimpleEMC] Recipe EMC calculation done. Cache should be saved.");
+                System.out.println("[SimpleEMC] RecipesUpdatedEvent – recalculating client EMC...");
+                EMCRegistry.clientReloadAndRecalculate(event.getRecipeManager(), registries);
             } else {
                 System.out.println("[SimpleEMC] RecipesUpdatedEvent fired but no registries available – skipping.");
             }
@@ -401,12 +400,18 @@ public class SimpleEMC {
             if (!event.getLevel().isClientSide()) return;
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
             if (mc.level != null && mc.getConnection() != null) {
-                System.out.println("[SimpleEMC] LevelEvent.Load (client) – ensuring recipe EMC is calculated...");
-                EMCRegistry.calculateAllRecipeEMC(
+                System.out.println("[SimpleEMC] LevelEvent.Load (client) – recalculating client EMC...");
+                EMCRegistry.clientReloadAndRecalculate(
                     mc.getConnection().getRecipeManager(),
                     mc.level.registryAccess()
                 );
             }
+        }
+
+        @SubscribeEvent
+        public static void onLoggingOut(net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
+            System.out.println("[SimpleEMC] Logging out – clearing server-synced overrides.");
+            EMCRegistry.clearClientSyncedOverrides();
         }
     }
 }
