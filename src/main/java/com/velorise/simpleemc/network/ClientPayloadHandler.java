@@ -18,17 +18,18 @@ public class ClientPayloadHandler {
 
     public static void handleCustomEMCSync(final SyncCustomEMCPayload payload, final IPayloadContext context) {
         context.enqueueWork(() -> {
+            java.util.Map<net.minecraft.world.item.Item, Long> clientOverrides = new java.util.HashMap<>();
+            payload.overrides().forEach((rl, val) -> {
+                net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(rl);
+                if (item != null && item != net.minecraft.world.item.Items.AIR) {
+                    clientOverrides.put(item, val);
+                }
+            });
+            com.velorise.simpleemc.EMCRegistry.setClientSyncedOverrides(clientOverrides);
+
             net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
             if (level != null) {
-                java.util.Map<net.minecraft.world.item.Item, Long> clientOverrides = new java.util.HashMap<>();
-                payload.overrides().forEach((rl, val) -> {
-                    net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(rl);
-                    if (item != null && item != net.minecraft.world.item.Items.AIR) {
-                        clientOverrides.put(item, val);
-                    }
-                });
-                com.velorise.simpleemc.EMCRegistry.applyCustomOverridesAndRecalculate(
-                    clientOverrides,
+                com.velorise.simpleemc.EMCRegistry.clientReloadAndRecalculate(
                     level.getRecipeManager(),
                     level.registryAccess()
                 );
