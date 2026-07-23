@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "velorise_emc:block/aura_node_tier_3",
+    "down": "velorise_emc:block/aura_node_tier_3_bottom",
+    "up": "velorise_emc:block/aura_node_tier_3",
+    "north": "velorise_emc:block/aura_node_tier_3",
+    "south": "velorise_emc:block/aura_node_tier_3",
+    "west": "velorise_emc:block/aura_node_tier_3",
+    "east": "velorise_emc:block/aura_node_tier_3"
+  }
+}

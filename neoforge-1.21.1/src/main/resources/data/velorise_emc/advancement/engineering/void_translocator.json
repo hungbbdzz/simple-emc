@@ -1,0 +1,31 @@
+{
+  "parent": "velorise_emc:engineering/magic_mirror",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:void_translocator",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.void_translocator.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.void_translocator.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:void_translocator"
+          }
+        ]
+      }
+    }
+  }
+}

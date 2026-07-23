@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/frostbolt_wand",
+  "display": {
+    "icon": {
+      "item": "minecraft:snowball"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.brain_freeze.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.brain_freeze.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 100
+  }
+}

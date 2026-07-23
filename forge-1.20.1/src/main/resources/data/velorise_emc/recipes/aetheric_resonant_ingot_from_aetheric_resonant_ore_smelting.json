@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "cookingtime": 800,
+  "experience": 3.0,
+  "ingredient": {
+    "item": "velorise_emc:aetheric_resonant_ore"
+  },
+  "result": "velorise_emc:aetheric_resonant_ingot"
+}

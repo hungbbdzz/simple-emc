@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:journey/overqualified",
+  "display": {
+    "icon": {
+      "item": "minecraft:nether_star"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.full_promotion.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.full_promotion.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 250
+  }
+}

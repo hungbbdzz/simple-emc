@@ -1,0 +1,19 @@
+{
+  "parent": "velorise_emc:engineering/resonance_jukebox",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:resonance_jukebox"
+    },
+    "title": "Industrial Music",
+    "description": "The factory finally has a soundtrack.",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

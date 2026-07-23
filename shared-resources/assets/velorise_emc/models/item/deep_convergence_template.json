@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "velorise_emc:item/deep_convergence_template"
+  }
+}

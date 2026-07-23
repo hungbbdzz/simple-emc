@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/resonant_furnace",
+  "display": {
+    "icon": {
+      "item": "minecraft:furnace"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.microwave_economics.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.microwave_economics.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

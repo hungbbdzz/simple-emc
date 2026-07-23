@@ -1,0 +1,43 @@
+{
+  "parent": "velorise_emc:journey/echoing_resonance",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:aetheric_resonant_chestplate"
+    },
+    "title": "End Fashion Week",
+    "description": "The void has a strict dress code.",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:aetheric_resonant_helmet"
+            ]
+          },
+          {
+            "items": [
+              "velorise_emc:aetheric_resonant_chestplate"
+            ]
+          },
+          {
+            "items": [
+              "velorise_emc:aetheric_resonant_leggings"
+            ]
+          },
+          {
+            "items": [
+              "velorise_emc:aetheric_resonant_boots"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

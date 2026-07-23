@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:world/silence_below",
+  "display": {
+    "icon": {
+      "item": "minecraft:dragon_head"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.one_boss_remaining.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.one_boss_remaining.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 250
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "velorise_emc:mobius_fuel"
+    },
+    {
+      "item": "velorise_emc:mobius_fuel"
+    },
+    {
+      "item": "velorise_emc:mobius_fuel"
+    },
+    {
+      "item": "velorise_emc:mobius_fuel"
+    },
+    {
+      "item": "velorise_emc:philosophers_stone"
+    }
+  ],
+  "result": {
+    "id": "velorise_emc:aeternalis_fuel",
+    "count": 1
+  }
+}

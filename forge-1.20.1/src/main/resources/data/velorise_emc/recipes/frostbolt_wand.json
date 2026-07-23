@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " NB",
+    " CA",
+    "S  "
+  ],
+  "key": {
+    "N": {
+      "item": "minecraft:snowball"
+    },
+    "B": {
+      "item": "minecraft:blue_ice"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "A": {
+      "item": "minecraft:amethyst_shard"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:frostbolt_wand"
+  }
+}

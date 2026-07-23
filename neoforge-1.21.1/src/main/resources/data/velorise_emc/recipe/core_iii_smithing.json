@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:smithing_transform",
+  "template": {
+    "item": "velorise_emc:end_ascension_template"
+  },
+  "base": {
+    "item": "velorise_emc:condensed_core_ii"
+  },
+  "addition": {
+    "item": "velorise_emc:mobius_fuel_block"
+  },
+  "result": {
+    "id": "velorise_emc:wireless_core_t3"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:world/overworld_proven",
+  "display": {
+    "icon": {
+      "id": "minecraft:nether_star",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.trial_of_nether.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.trial_of_nether.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 100
+  }
+}

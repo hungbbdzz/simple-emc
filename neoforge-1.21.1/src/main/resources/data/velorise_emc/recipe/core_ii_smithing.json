@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:smithing_transform",
+  "template": {
+    "item": "velorise_emc:infernal_ascension_template"
+  },
+  "base": {
+    "item": "velorise_emc:condensed_core_i"
+  },
+  "addition": {
+    "item": "velorise_emc:alchemical_coal_block"
+  },
+  "result": {
+    "id": "velorise_emc:wireless_core_t2"
+  }
+}

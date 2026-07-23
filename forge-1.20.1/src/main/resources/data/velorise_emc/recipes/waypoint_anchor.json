@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "OEO",
+    "OWO",
+    "OLO"
+  ],
+  "key": {
+    "O": {
+      "item": "minecraft:obsidian"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "W": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "L": {
+      "item": "minecraft:lodestone"
+    }
+  },
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:waypoint_anchor"
+  }
+}

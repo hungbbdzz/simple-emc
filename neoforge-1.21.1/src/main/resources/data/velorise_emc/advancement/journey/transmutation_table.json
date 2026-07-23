@@ -1,0 +1,31 @@
+{
+  "parent": "velorise_emc:journey/root",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:transmutation_table",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.transmutation_table.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.transmutation_table.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:transmutation_table"
+          }
+        ]
+      }
+    }
+  }
+}

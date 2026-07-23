@@ -1,0 +1,23 @@
+{
+  "parent": "velorise_emc:world/united_front",
+  "display": {
+    "icon": {
+      "item": "minecraft:clock"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.easter.meeting_could_have_been_an_email.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.easter.meeting_could_have_been_an_email.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

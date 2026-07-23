@@ -1,0 +1,71 @@
+{
+  "parent": "velorise_emc:journey/wireless_core",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.core_values.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.core_values.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "item_0": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:wireless_core_t1"
+            ]
+          }
+        ]
+      }
+    },
+    "item_1": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:wireless_core_t2"
+            ]
+          }
+        ]
+      }
+    },
+    "item_2": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:wireless_core_t3"
+            ]
+          }
+        ]
+      }
+    },
+    "item_3": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:wireless_core_t4"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "experience": 75
+  }
+}

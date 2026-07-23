@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:smithing_transform",
+  "template": {
+    "item": "velorise_emc:infernal_ascension_template"
+  },
+  "base": {
+    "item": "velorise_emc:verdant_resonant_hoe"
+  },
+  "addition": {
+    "item": "velorise_emc:infernal_resonant_ingot"
+  },
+  "result": {
+    "item": "velorise_emc:infernal_resonant_hoe"
+  }
+}

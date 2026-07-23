@@ -1,0 +1,6 @@
+{
+  "parent": "velorise_emc:item/arcane_staff_handheld",
+  "textures": {
+    "layer0": "velorise_emc:item/resonant_echo"
+  }
+}

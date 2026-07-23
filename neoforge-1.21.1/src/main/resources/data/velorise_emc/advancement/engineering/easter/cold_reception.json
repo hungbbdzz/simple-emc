@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/frostbolt_wand",
+  "display": {
+    "icon": {
+      "item": "minecraft:blue_ice"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.cold_reception.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.cold_reception.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

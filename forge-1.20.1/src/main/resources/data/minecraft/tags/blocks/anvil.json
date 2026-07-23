@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "velorise_emc:alchemical_anvil_i",
+    "velorise_emc:alchemical_anvil_ii",
+    "velorise_emc:alchemical_anvil_iii",
+    "velorise_emc:alchemical_anvil_iv"
+  ]
+}

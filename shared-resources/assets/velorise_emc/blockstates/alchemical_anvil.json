@@ -1,0 +1,64 @@
+{
+  "variants": {
+    "facing=north,core_level=1": {
+      "model": "velorise_emc:block/alchemical_anvil"
+    },
+    "facing=east,core_level=1": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 90
+    },
+    "facing=south,core_level=1": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 180
+    },
+    "facing=west,core_level=1": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 270
+    },
+    "facing=north,core_level=2": {
+      "model": "velorise_emc:block/alchemical_anvil"
+    },
+    "facing=east,core_level=2": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 90
+    },
+    "facing=south,core_level=2": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 180
+    },
+    "facing=west,core_level=2": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 270
+    },
+    "facing=north,core_level=3": {
+      "model": "velorise_emc:block/alchemical_anvil"
+    },
+    "facing=east,core_level=3": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 90
+    },
+    "facing=south,core_level=3": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 180
+    },
+    "facing=west,core_level=3": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 270
+    },
+    "facing=north,core_level=4": {
+      "model": "velorise_emc:block/alchemical_anvil"
+    },
+    "facing=east,core_level=4": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 90
+    },
+    "facing=south,core_level=4": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 180
+    },
+    "facing=west,core_level=4": {
+      "model": "velorise_emc:block/alchemical_anvil",
+      "y": 270
+    }
+  }
+}

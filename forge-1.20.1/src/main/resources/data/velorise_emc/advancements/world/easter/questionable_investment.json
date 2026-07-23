@@ -1,0 +1,23 @@
+{
+  "parent": "velorise_emc:journey/first_materialization",
+  "display": {
+    "icon": {
+      "item": "minecraft:gold_ingot"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.easter.questionable_investment.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.easter.questionable_investment.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "B": {
+      "item": "minecraft:book"
+    },
+    "S": {
+      "item": "velorise_emc:philosophers_stone"
+    }
+  },
+  "pattern": [
+    "PBP",
+    "BSB",
+    "PBP"
+  ],
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:knowledge_sharing_book"
+  }
+}

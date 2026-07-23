@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/wither_scepter",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:wither_scepter"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.skeleton_management.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.skeleton_management.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

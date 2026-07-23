@@ -1,0 +1,42 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "ABC",
+    "DTE",
+    "FGH"
+  ],
+  "key": {
+    "T": {
+      "item": "velorise_emc:end_ascension_template"
+    },
+    "A": {
+      "item": "minecraft:echo_shard"
+    },
+    "B": {
+      "item": "minecraft:recovery_compass"
+    },
+    "C": {
+      "item": "minecraft:disc_fragment_5"
+    },
+    "D": {
+      "item": "minecraft:sculk_catalyst"
+    },
+    "E": {
+      "item": "minecraft:silence_armor_trim_smithing_template"
+    },
+    "F": {
+      "item": "minecraft:heart_of_the_sea"
+    },
+    "G": {
+      "item": "minecraft:sponge"
+    },
+    "H": {
+      "item": "minecraft:tide_armor_trim_smithing_template"
+    }
+  },
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:deep_convergence_template"
+  }
+}

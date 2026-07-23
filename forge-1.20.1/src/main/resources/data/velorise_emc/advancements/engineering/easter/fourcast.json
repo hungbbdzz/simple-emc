@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/stormcaller",
+  "display": {
+    "icon": {
+      "item": "minecraft:lightning_rod"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.fourcast.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.fourcast.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

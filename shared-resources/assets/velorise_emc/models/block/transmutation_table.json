@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "velorise_emc:block/transmutation_table_side",
+    "down": "velorise_emc:block/transmutation_table_bottom",
+    "up": "velorise_emc:block/transmutation_table_top",
+    "north": "velorise_emc:block/transmutation_table_side",
+    "east": "velorise_emc:block/transmutation_table_side",
+    "south": "velorise_emc:block/transmutation_table_side",
+    "west": "velorise_emc:block/transmutation_table_side"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "velorise_emc:alchemical_coal"
+    },
+    {
+      "item": "velorise_emc:alchemical_coal"
+    },
+    {
+      "item": "velorise_emc:alchemical_coal"
+    },
+    {
+      "item": "velorise_emc:alchemical_coal"
+    },
+    {
+      "item": "velorise_emc:philosophers_stone"
+    }
+  ],
+  "result": {
+    "item": "velorise_emc:mobius_fuel",
+    "count": 1
+  }
+}

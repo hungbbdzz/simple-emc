@@ -1,0 +1,24 @@
+{
+  "parent": "velorise_emc:world/united_front",
+  "display": {
+    "icon": {
+      "id": "minecraft:echo_shard",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.easter.human_resources_problem.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.easter.human_resources_problem.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

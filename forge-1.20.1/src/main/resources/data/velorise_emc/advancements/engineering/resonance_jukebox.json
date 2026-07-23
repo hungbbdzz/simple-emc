@@ -1,0 +1,32 @@
+{
+  "parent": "velorise_emc:engineering/root",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:resonance_jukebox"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.resonance_jukebox.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.resonance_jukebox.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:resonance_jukebox"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

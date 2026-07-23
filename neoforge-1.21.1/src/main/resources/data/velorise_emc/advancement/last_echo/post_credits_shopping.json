@@ -1,0 +1,20 @@
+{
+  "parent": "velorise_emc:last_echo/defeat_echobound_dragon",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:heart_of_the_last_echo",
+      "count": 1
+    },
+    "title": "Post-Credits Shopping",
+    "description": "The final boss was apparently a supply crate.",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

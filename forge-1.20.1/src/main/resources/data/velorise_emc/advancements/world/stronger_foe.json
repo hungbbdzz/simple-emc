@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:world/root",
+  "display": {
+    "icon": {
+      "item": "minecraft:wither_skeleton_skull"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.stronger_foe.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.stronger_foe.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 75
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

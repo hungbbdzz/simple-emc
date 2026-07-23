@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "velorise_emc:block/alchemical_coal_block" }
+  }
+}

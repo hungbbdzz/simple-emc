@@ -1,0 +1,16 @@
+{
+  "replace": false,
+  "values": [
+    "velorise_emc:infernal_resonant_ore",
+    "velorise_emc:infernal_resonant_block",
+    "velorise_emc:mobius_fuel_block",
+    "velorise_emc:aetheric_resonant_ore",
+    "velorise_emc:aetheric_resonant_block",
+    "velorise_emc:aeternalis_fuel_block",
+    "velorise_emc:echoing_resonant_ore",
+    "velorise_emc:echoing_resonant_block",
+    "velorise_emc:condensed_core_block_ii",
+    "velorise_emc:condensed_core_block_iii",
+    "velorise_emc:condensed_core_block_iv"
+  ]
+}

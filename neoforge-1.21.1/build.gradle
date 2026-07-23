@@ -1,0 +1,98 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.78'
+    id 'idea'
+}
+
+version = rootProject.mod_version
+group = rootProject.mod_group_id
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = rootProject.neo_version
+
+    parchment {
+        mappingsVersion = rootProject.neo_parchment_mappings_version
+        minecraftVersion = rootProject.neo_parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', rootProject.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', rootProject.mod_id
+        }
+    }
+
+    mods {
+        "${rootProject.mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sourceSets.main.java {
+    srcDir rootProject.file('common-core/src/main/java')
+    srcDir rootProject.file('common-gameplay/src/main/java')
+}
+
+sourceSets.main.resources {
+    srcDir rootProject.file('shared-resources')
+    srcDir 'src/generated/resources'
+    exclude '**/*.bbmodel'
+}
+
+repositories {
+    maven {
+        url = 'https://www.cursemaven.com'
+        content { includeGroup 'curse.maven' }
+    }
+}
+
+dependencies {
+    implementation project(':common-core')
+    compileOnly "curse.maven:jade-324717:5846105"
+    compileOnly "curse.maven:jei-238222:5670717"
+}
+
+tasks.withType(ProcessResources).configureEach {
+    def replaceProperties = [
+        minecraft_version      : rootProject.neo_minecraft_version,
+        minecraft_version_range: rootProject.neo_minecraft_version_range,
+        neo_version            : rootProject.neo_version,
+        neo_version_range      : rootProject.neo_version_range,
+        loader_version_range   : rootProject.neo_loader_version_range,
+        mod_id                 : rootProject.mod_id,
+        mod_name               : rootProject.mod_name,
+        mod_license            : rootProject.mod_license,
+        mod_version            : rootProject.mod_version,
+        mod_authors            : rootProject.mod_authors,
+        mod_description        : rootProject.mod_description
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties
+    }
+}
+
+tasks.named('jar', Jar) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn ':common-core:classes'
+    from(project(':common-core').sourceSets.main.output)
+    archiveFileName = "velorise-emc-${rootProject.mod_version}-neoforge-${rootProject.neo_minecraft_version}.jar"
+    doLast {
+        def targetDir = file('C:/Users/hunga/AppData/Roaming/.minecraft/versions/Neo 1.21.1/mods')
+        copy {
+            from archiveFile
+            into targetDir
+        }
+    }
+}

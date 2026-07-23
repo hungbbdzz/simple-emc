@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:engineering/resonance_jukebox",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:resonance_jukebox",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.worlds_soundtrack.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.worlds_soundtrack.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 250
+  }
+}

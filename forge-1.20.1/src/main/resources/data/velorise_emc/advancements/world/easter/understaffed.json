@@ -1,0 +1,23 @@
+{
+  "parent": "velorise_emc:world/stronger_foe",
+  "display": {
+    "icon": {
+      "item": "minecraft:player_head"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.easter.understaffed.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.easter.understaffed.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:engineering/root",
+  "display": {
+    "icon": {
+      "id": "minecraft:nether_star",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.arcane_arsenal.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.arcane_arsenal.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 250
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "pattern": [
+    "  C",
+    " S ",
+    "S  "
+  ],
+  "result": {
+    "id": "velorise_emc:void_translocator",
+    "count": 1
+  }
+}

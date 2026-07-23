@@ -1,0 +1,21 @@
+{
+  "replace": false,
+  "values": [
+    "velorise_emc:verdant_resonant_helmet",
+    "velorise_emc:infernal_resonant_helmet",
+    "velorise_emc:aetheric_resonant_helmet",
+    "velorise_emc:echoing_resonant_helmet",
+    "velorise_emc:verdant_resonant_chestplate",
+    "velorise_emc:infernal_resonant_chestplate",
+    "velorise_emc:aetheric_resonant_chestplate",
+    "velorise_emc:echoing_resonant_chestplate",
+    "velorise_emc:verdant_resonant_leggings",
+    "velorise_emc:infernal_resonant_leggings",
+    "velorise_emc:aetheric_resonant_leggings",
+    "velorise_emc:echoing_resonant_leggings",
+    "velorise_emc:verdant_resonant_boots",
+    "velorise_emc:infernal_resonant_boots",
+    "velorise_emc:aetheric_resonant_boots",
+    "velorise_emc:echoing_resonant_boots"
+  ]
+}

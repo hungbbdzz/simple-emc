@@ -1,0 +1,23 @@
+{
+  "parent": "velorise_emc:world/tower_hungers",
+  "display": {
+    "icon": {
+      "item": "minecraft:totem_of_undying"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.easter.this_seems_unsafe.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.easter.this_seems_unsafe.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

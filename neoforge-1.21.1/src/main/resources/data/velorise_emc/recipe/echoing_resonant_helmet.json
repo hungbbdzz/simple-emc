@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:smithing_transform",
+  "template": {
+    "item": "velorise_emc:deep_convergence_template"
+  },
+  "base": {
+    "item": "velorise_emc:aetheric_resonant_helmet"
+  },
+  "addition": {
+    "item": "velorise_emc:echoing_resonant_ingot"
+  },
+  "result": {
+    "id": "velorise_emc:echoing_resonant_helmet"
+  }
+}

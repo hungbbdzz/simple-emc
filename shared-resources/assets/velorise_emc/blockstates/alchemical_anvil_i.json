@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "velorise_emc:block/alchemical_anvil_i"
+    },
+    "facing=east": {
+      "model": "velorise_emc:block/alchemical_anvil_i",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "velorise_emc:block/alchemical_anvil_i",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "velorise_emc:block/alchemical_anvil_i",
+      "y": 270
+    }
+  }
+}

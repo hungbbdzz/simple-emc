@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/arcane_arsenal",
+  "display": {
+    "icon": {
+      "item": "minecraft:fire_charge"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.elemental_disagreement.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.elemental_disagreement.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 100
+  }
+}

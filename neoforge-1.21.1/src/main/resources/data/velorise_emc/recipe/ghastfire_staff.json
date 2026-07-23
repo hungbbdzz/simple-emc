@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " FG",
+    " CP",
+    "S  "
+  ],
+  "key": {
+    "F": {
+      "item": "minecraft:fire_charge"
+    },
+    "G": {
+      "item": "minecraft:ghast_tear"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "P": {
+      "item": "minecraft:gunpowder"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:ghastfire_staff"
+  }
+}

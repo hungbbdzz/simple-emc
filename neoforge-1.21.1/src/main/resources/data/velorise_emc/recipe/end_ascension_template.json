@@ -1,0 +1,42 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "ABC",
+    "DTE",
+    "FGH"
+  ],
+  "key": {
+    "T": {
+      "item": "velorise_emc:infernal_ascension_template"
+    },
+    "A": {
+      "item": "minecraft:dragon_breath"
+    },
+    "B": {
+      "item": "minecraft:shulker_shell"
+    },
+    "C": {
+      "item": "minecraft:dragon_head"
+    },
+    "D": {
+      "item": "minecraft:end_crystal"
+    },
+    "E": {
+      "item": "minecraft:chorus_flower"
+    },
+    "F": {
+      "item": "minecraft:end_rod"
+    },
+    "G": {
+      "item": "minecraft:purpur_block"
+    },
+    "H": {
+      "item": "minecraft:spire_armor_trim_smithing_template"
+    }
+  },
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:end_ascension_template"
+  }
+}

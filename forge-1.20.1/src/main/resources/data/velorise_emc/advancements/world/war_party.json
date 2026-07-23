@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:world/stronger_foe",
+  "display": {
+    "icon": {
+      "item": "minecraft:diamond_sword"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.war_party.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.war_party.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 100
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

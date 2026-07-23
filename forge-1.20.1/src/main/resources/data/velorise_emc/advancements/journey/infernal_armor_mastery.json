@@ -1,0 +1,43 @@
+{
+  "parent": "velorise_emc:journey/infernal_resonance",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:infernal_resonant_chestplate"
+    },
+    "title": "Walking Fire Hazard",
+    "description": "Keep away from wooden structures.",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:infernal_resonant_helmet"
+            ]
+          },
+          {
+            "items": [
+              "velorise_emc:infernal_resonant_chestplate"
+            ]
+          },
+          {
+            "items": [
+              "velorise_emc:infernal_resonant_leggings"
+            ]
+          },
+          {
+            "items": [
+              "velorise_emc:infernal_resonant_boots"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

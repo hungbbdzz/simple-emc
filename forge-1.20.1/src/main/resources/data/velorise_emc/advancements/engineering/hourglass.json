@@ -1,0 +1,32 @@
+{
+  "parent": "velorise_emc:engineering/resonant_furnace",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:alchemical_hourglass"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.hourglass.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.hourglass.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:alchemical_hourglass"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

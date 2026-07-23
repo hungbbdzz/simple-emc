@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:journey/equipment_core_iv",
+  "display": {
+    "icon": {
+      "id": "minecraft:netherite_chestplate",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.full_core_iv_armor.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.full_core_iv_armor.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 500
+  }
+}

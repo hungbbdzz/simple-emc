@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:engineering/generator_i",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:condensed_core_block_ii",
+      "count": 1
+    },
+    "title": "Compound Interest",
+    "description": "The numbers have started breeding.",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:condensed_core_block_ii"
+          }
+        ]
+      }
+    }
+  }
+}

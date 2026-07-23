@@ -1,0 +1,32 @@
+{
+  "parent": "velorise_emc:engineering/attraction_catalyst",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:purifying_milk"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.purifying_milk.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.purifying_milk.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:purifying_milk"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,211 @@
+plugins {
+    id 'base'
+}
+
+allprojects {
+    group = providers.gradleProperty('mod_group_id').get()
+    version = providers.gradleProperty('mod_version').get()
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+}
+
+
+
+tasks.register('cleanRetiredSources', Delete) {
+    group = 'build setup'
+    description = 'Deletes retired source and resource files left behind when a release is merged over an older project tree.'
+
+    delete fileTree('common-core/src/main/java') {
+        include '**/ArcaneBookshelfProfile.java'
+        include '**/ArcaneEnchantMemory.java'
+        include '**/ArcaneEnchantMemoryEntry.java'
+        include '**/ArcaneEnchantingProfile.java'
+    }
+    delete fileTree('common-core/src/test/java') {
+        include '**/ArcaneBookshelfProfileTest.java'
+        include '**/ArcaneEnchantMemoryTest.java'
+        include '**/ArcaneEnchantingProfileTest.java'
+    }
+    delete fileTree('common-gameplay/src/main/java') {
+        include '**/ArcaneBookshelfItem.java'
+        include '**/ArcaneMemoryScreen.java'
+        include '**/PouchFilter*.java'
+        include '**/AutoBurnMiningPouch*.java'
+        include '**/ResonantHopper*.java'
+        include '**/PortableDispenserMenu.java'
+        include '**/VerdantComposter*.java'
+    }
+    delete fileTree('forge-1.20.1/src/main/resources/data/velorise_emc/recipes') {
+        include '**/shield_staff.json'
+    }
+    delete fileTree('neoforge-1.21.1/src/main/resources/data/velorise_emc/recipe') {
+        include '**/shield_staff.json'
+    }
+    delete fileTree('forge-1.20.1/src/main/java') {
+        include '**/ArcaneBookshelfBlock.java'
+        include '**/ArcaneEnchantingMenu.java'
+        include '**/ArcaneEnchantingTableBlock.java'
+        include '**/ArcaneEnchantingTableBlockEntity.java'
+        include '**/HatchedEggItem.java'
+        include '**/OpenArcaneMemoryMessage.java'
+        include '**/PouchFilter*.java'
+        include '**/AutoBurnMiningPouch*.java'
+        include '**/ResonantHopper*.java'
+        include '**/PortableCoreAuraMachine.java'
+        include '**/PortableMachineUi.java'
+        include '**/PortableResonantDispenser.java'
+        include '**/EnchantmentExtractionUtil.java'
+        include '**/VerdantComposter*.java'
+        include '**/ResonantFurnaceJadeProvider.java'
+    }
+    delete fileTree('neoforge-1.21.1/src/main/java') {
+        include '**/ArcaneBookshelfBlock.java'
+        include '**/ArcaneEnchantingMenu.java'
+        include '**/ArcaneEnchantingTableBlock.java'
+        include '**/ArcaneEnchantingTableBlockEntity.java'
+        include '**/HatchedEggItem.java'
+        include '**/OpenArcaneMemoryPayload.java'
+        include '**/PouchFilter*.java'
+        include '**/AutoBurnMiningPouch*.java'
+        include '**/ResonantHopper*.java'
+        include '**/PortableCoreAuraMachine.java'
+        include '**/PortableMachineUi.java'
+        include '**/PortableResonantDispenser.java'
+        include '**/EnchantmentExtractionUtil.java'
+        include '**/VerdantComposter*.java'
+        include '**/ResonantFurnaceJadeProvider.java'
+    }
+    delete fileTree('common-gameplay/src/main/resources') {
+        include '**/resonant_hopper*'
+        include '**/auto_burn_mining_pouch*'
+        include '**/verdant_composter*'
+        include '**/resonant_energy_pulse*'
+    }
+    delete fileTree('forge-1.20.1/src/main/resources') {
+        include '**/arcane_bookshelf*'
+        include '**/arcane_enchanting*'
+        include '**/hatched_egg*'
+        include '**/draconic_breath*'
+        include '**/portable_smithing_table*'
+        include '**/resonant_hopper*'
+        include '**/auto_burn_mining_pouch*'
+        include '**/verdant_composter*'
+        include '**/resonant_energy_pulse*'
+        include 'data/velorise_emc/advancements/*.json'
+    }
+    delete fileTree('neoforge-1.21.1/src/main/resources') {
+        include '**/arcane_bookshelf*'
+        include '**/arcane_enchanting*'
+        include '**/hatched_egg*'
+        include '**/draconic_breath*'
+        include '**/portable_smithing_table*'
+        include '**/resonant_hopper*'
+        include '**/auto_burn_mining_pouch*'
+        include '**/verdant_composter*'
+        include '**/resonant_energy_pulse*'
+        include 'data/velorise_emc/advancement/*.json'
+    }
+    delete fileTree('shared-resources') {
+        include '**/arcane_bookshelf*'
+        include '**/arcane_enchanting_table*'
+        include '**/hatched_egg*'
+        include '**/draconic_breath*'
+        include '**/portable_smithing_table*'
+        include '**/resonant_hopper*'
+        include '**/auto_burn_mining_pouch*'
+        include '**/verdant_composter*'
+        include '**/resonant_energy_pulse*'
+    }
+}
+
+subprojects {
+    tasks.matching { it.name in ['compileJava', 'compileTestJava', 'processResources', 'processTestResources'] }.configureEach {
+        dependsOn rootProject.tasks.named('cleanRetiredSources')
+    }
+}
+
+tasks.register('buildAll') {
+    group = 'build'
+    description = 'Builds every supported Velorise EMC target.'
+    dependsOn ':common-core:check', ':common-gameplay:check', ':forge-1.20.1:build', ':neoforge-1.21.1:build'
+}
+
+
+tasks.named('build') {
+    dependsOn 'buildAll'
+}
+
+tasks.register('deleteTargetTextures', Delete) {
+    group = 'build setup'
+    description = 'Deletes the 7 item texture files so user can copy new ones manually.'
+    delete 'shared-resources/assets/velorise_emc/textures/item/deepbound_eye.png'
+    delete 'shared-resources/assets/velorise_emc/textures/item/dragonfire_scepter.png'
+    delete 'shared-resources/assets/velorise_emc/textures/item/echobound_dragon_scale.png'
+    delete 'shared-resources/assets/velorise_emc/textures/item/ghastfire_staff.png'
+    delete 'shared-resources/assets/velorise_emc/textures/item/heart_of_the_last_echo.png'
+    delete 'shared-resources/assets/velorise_emc/textures/item/void_translocator.png'
+    delete 'shared-resources/assets/velorise_emc/textures/item/wither_scepter.png'
+}
+
+tasks.register('collectJars', Copy) {
+    group = 'build'
+    description = 'Builds all targets and copies release jars into /dist.'
+    dependsOn 'buildAll'
+
+    doFirst {
+        project.delete(rootProject.fileTree('dist') {
+            exclude '.gitkeep'
+        })
+        rootProject.file('dist').mkdirs()
+    }
+
+    from(project(':forge-1.20.1').layout.buildDirectory.dir('libs')) {
+        include '*.jar'
+        exclude '*-sources.jar', '*-dev.jar', '*-slim.jar'
+    }
+    from(project(':neoforge-1.21.1').layout.buildDirectory.dir('libs')) {
+        include '*.jar'
+        exclude '*-sources.jar', '*-dev.jar', '*-slim.jar'
+    }
+    into layout.projectDirectory.dir('dist')
+
+    doLast {
+        copy {
+            from layout.projectDirectory.dir('dist')
+            into rootProject.file('../mods')
+        }
+        File neoMods = file('C:/Users/hunga/AppData/Roaming/.minecraft/versions/Neo 1.21.1/mods')
+        if (neoMods.exists()) {
+            project.delete(fileTree(neoMods) { include 'velorise-emc-*.jar' })
+            copy {
+                from layout.projectDirectory.dir('dist')
+                include '*-neoforge-1.21.1.jar'
+                into neoMods
+            }
+        }
+    }
+}
+
+
+tasks.register('verifyRefactorArchitecture') {
+    group = 'verification'
+    description = 'Runs shared-source guards and the dependency-free common-core smoke suite.'
+    dependsOn ':common-gameplay:check'
+    doLast {
+        exec {
+            workingDir rootProject.projectDir
+            commandLine 'python3', 'scripts/validate_source_tree.py'
+        }
+        exec {
+            workingDir rootProject.projectDir
+            commandLine 'python3', 'scripts/audit_source_duplication.py'
+        }
+        exec {
+            workingDir rootProject.projectDir
+            commandLine 'bash', 'scripts/run_common_core_smoke.sh'
+        }
+    }
+}

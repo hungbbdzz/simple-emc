@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "BBB",
+    "BCB",
+    "BBB"
+  ],
+  "key": {
+    "B": {
+      "item": "minecraft:blaze_rod"
+    },
+    "C": {
+      "item": "velorise_emc:condensed_core_i"
+    }
+  },
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:eye_of_the_crucible"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "velorise_emc:block/echoing_resonant_block"
+    }
+  }
+}

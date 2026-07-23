@@ -1,0 +1,38 @@
+{
+  "parent": "velorise_emc:journey/nine_to_one",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:condensed_core_block_i"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.management_block.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.management_block.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "item_0": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:condensed_core_block_i",
+              "velorise_emc:condensed_core_block_ii",
+              "velorise_emc:condensed_core_block_iii",
+              "velorise_emc:condensed_core_block_iv"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "experience": 100
+  }
+}

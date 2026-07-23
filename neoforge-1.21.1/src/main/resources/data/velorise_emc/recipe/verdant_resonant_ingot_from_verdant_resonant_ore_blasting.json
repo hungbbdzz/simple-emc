@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:blasting",
+  "category": "misc",
+  "cookingtime": 200,
+  "experience": 1.0,
+  "ingredient": {
+    "item": "velorise_emc:verdant_resonant_ore"
+  },
+  "result": {
+    "id": "velorise_emc:verdant_resonant_ingot"
+  }
+}

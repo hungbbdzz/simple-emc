@@ -1,0 +1,34 @@
+{
+  "parent": "velorise_emc:journey/mobius_fuel",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:aeternalis_fuel",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.aeternalis_fuel.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.aeternalis_fuel.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 100
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:aeternalis_fuel"
+          }
+        ]
+      }
+    }
+  }
+}

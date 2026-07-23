@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": {"model":"velorise_emc:block/portable_stonecutter"},
+    "facing=east": {"model":"velorise_emc:block/portable_stonecutter","y":90},
+    "facing=south": {"model":"velorise_emc:block/portable_stonecutter","y":180},
+    "facing=west": {"model":"velorise_emc:block/portable_stonecutter","y":270}
+  }
+}

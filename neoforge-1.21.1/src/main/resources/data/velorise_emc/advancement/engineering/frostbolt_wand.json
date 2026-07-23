@@ -1,0 +1,24 @@
+{
+  "parent": "velorise_emc:engineering/root",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:frostbolt_wand",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.frostbolt_wand.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.frostbolt_wand.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

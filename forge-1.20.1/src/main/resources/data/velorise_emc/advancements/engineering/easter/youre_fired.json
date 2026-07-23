@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/inferno_rod",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:inferno_rod"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.youre_fired.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.youre_fired.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/complete_foundry",
+  "display": {
+    "icon": {
+      "item": "minecraft:blast_furnace"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.industrial_revolution_again.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.industrial_revolution_again.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 150
+  }
+}

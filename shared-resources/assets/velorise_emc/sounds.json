@@ -1,0 +1,8 @@
+{
+  "magic_mirror_use": {
+    "subtitle": "subtitles.velorise_emc.magic_mirror_use",
+    "sounds": [
+      "velorise_emc:magic_mirror_use"
+    ]
+  }
+}

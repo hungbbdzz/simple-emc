@@ -1,0 +1,31 @@
+{
+  "parent": "velorise_emc:engineering/machine_core_i",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:tidal_conduit",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.tidal_conduit.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.tidal_conduit.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:tidal_conduit"
+          }
+        ]
+      }
+    }
+  }
+}

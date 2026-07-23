@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/template_anvil",
+  "textures": {
+    "particle": "velorise_emc:block/alchemical_anvil_iv",
+    "body": "velorise_emc:block/alchemical_anvil_iv",
+    "top": "velorise_emc:block/alchemical_anvil_iv"
+  }
+}

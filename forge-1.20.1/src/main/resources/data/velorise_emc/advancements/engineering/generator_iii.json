@@ -1,0 +1,28 @@
+{
+  "parent": "velorise_emc:engineering/generator_ii",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:condensed_core_block_iii"
+    },
+    "title": "The Economy Is Fine",
+    "description": "Please ignore the rapidly increasing integer.",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:condensed_core_block_iii"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

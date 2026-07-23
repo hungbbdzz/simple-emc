@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:world/world_hardens",
+  "display": {
+    "icon": {
+      "item": "minecraft:netherite_sword"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.apex_survivor.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.apex_survivor.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 100
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

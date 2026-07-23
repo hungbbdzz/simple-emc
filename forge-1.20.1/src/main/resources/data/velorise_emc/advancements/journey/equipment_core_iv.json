@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:journey/equipment_core_i",
+  "display": {
+    "icon": {
+      "item": "minecraft:netherite_sword"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.equipment_core_iv.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.equipment_core_iv.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 100
+  }
+}

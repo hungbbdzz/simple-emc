@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "velorise_emc:verdant_resonant_ore",
+    "velorise_emc:deepslate_verdant_resonant_ore",
+    "velorise_emc:verdant_resonant_block",
+    "velorise_emc:infernal_resonant_ore",
+    "velorise_emc:infernal_resonant_block",
+    "velorise_emc:aetheric_resonant_ore",
+    "velorise_emc:aetheric_resonant_block",
+    "velorise_emc:echoing_resonant_ore",
+    "velorise_emc:echoing_resonant_block"
+  ]
+}

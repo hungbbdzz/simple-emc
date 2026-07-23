@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " EK",
+    " CP",
+    "S  "
+  ],
+  "key": {
+    "E": {
+      "item": "minecraft:end_rod"
+    },
+    "K": {
+      "item": "minecraft:shulker_shell"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "P": {
+      "item": "minecraft:popped_chorus_fruit"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:shulker_seeker"
+  }
+}

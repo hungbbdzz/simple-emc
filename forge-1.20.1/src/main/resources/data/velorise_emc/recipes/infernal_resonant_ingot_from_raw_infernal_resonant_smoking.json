@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:smoking",
+  "category": "misc",
+  "cookingtime": 400,
+  "experience": 2.0,
+  "ingredient": {
+    "item": "velorise_emc:raw_infernal_resonant"
+  },
+  "result": "velorise_emc:infernal_resonant_ingot"
+}

@@ -1,0 +1,24 @@
+{
+  "parent": "velorise_emc:journey/emc_millionaire",
+  "display": {
+    "icon": {
+      "id": "minecraft:emerald_block",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.easter.not_rich_enough.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.easter.not_rich_enough.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

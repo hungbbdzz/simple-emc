@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/resonant_echo",
+  "display": {
+    "icon": {
+      "item": "minecraft:sculk_shrieker"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.speak_up.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.speak_up.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 100
+  }
+}

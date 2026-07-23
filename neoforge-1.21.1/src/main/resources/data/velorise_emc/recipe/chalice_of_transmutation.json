@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "item": "minecraft:gold_block"
+    },
+    "F": {
+      "item": "velorise_emc:aeternalis_fuel"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    }
+  },
+  "pattern": [
+    "GFG",
+    " C ",
+    "GGG"
+  ],
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:chalice_of_transmutation"
+  }
+}

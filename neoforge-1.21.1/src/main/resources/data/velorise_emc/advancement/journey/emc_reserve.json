@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:journey/first_exchange",
+  "display": {
+    "icon": {
+      "id": "minecraft:diamond_block",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.emc_reserve.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.emc_reserve.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 50
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

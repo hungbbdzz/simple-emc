@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:smithing_transform",
+  "template": {
+    "item": "velorise_emc:deep_convergence_template"
+  },
+  "base": {
+    "item": "velorise_emc:condensed_core_iii"
+  },
+  "addition": {
+    "item": "velorise_emc:aeternalis_fuel_block"
+  },
+  "result": {
+    "id": "velorise_emc:wireless_core_t4"
+  }
+}

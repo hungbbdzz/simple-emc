@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "EEE",
+    "ECE",
+    "ETE"
+  ],
+  "key": {
+    "E": {
+      "item": "velorise_emc:echoing_resonant_ingot"
+    },
+    "C": {
+      "item": "velorise_emc:condensed_core_iv"
+    },
+    "T": {
+      "item": "velorise_emc:transmutation_tablet"
+    }
+  },
+  "result": {
+    "id": "velorise_emc:tome_of_knowledge",
+    "count": 1
+  }
+}

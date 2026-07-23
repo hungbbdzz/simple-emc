@@ -1,0 +1,36 @@
+{
+  "parent": "velorise_emc:engineering/generator_iv",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:condensed_core_block_iv",
+      "count": 1
+    },
+    "title": "Four Sources of Income",
+    "description": "Diversification means building the same machine four times.",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:condensed_core_block_i"
+          },
+          {
+            "items": "velorise_emc:condensed_core_block_ii"
+          },
+          {
+            "items": "velorise_emc:condensed_core_block_iii"
+          },
+          {
+            "items": "velorise_emc:condensed_core_block_iv"
+          }
+        ]
+      }
+    }
+  }
+}

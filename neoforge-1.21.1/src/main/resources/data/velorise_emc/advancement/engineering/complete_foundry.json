@@ -1,0 +1,65 @@
+{
+  "parent": "velorise_emc:engineering/resonant_furnace",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:resonant_blast_furnace",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.complete_foundry.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.complete_foundry.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 100
+  },
+  "criteria": {
+    "resonant_furnace": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:resonant_furnace"
+          }
+        ]
+      }
+    },
+    "resonant_smoker": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:resonant_smoker"
+          }
+        ]
+      }
+    },
+    "resonant_blast_furnace": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:resonant_blast_furnace"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "resonant_furnace"
+    ],
+    [
+      "resonant_smoker"
+    ],
+    [
+      "resonant_blast_furnace"
+    ]
+  ]
+}

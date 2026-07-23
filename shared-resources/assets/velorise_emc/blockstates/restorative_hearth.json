@@ -1,0 +1,9 @@
+{
+  "multipart": [
+    {
+      "apply": {
+        "model": "velorise_emc:block/restorative_hearth"
+      }
+    }
+  ]
+}

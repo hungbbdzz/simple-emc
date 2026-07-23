@@ -1,0 +1,31 @@
+{
+  "parent": "velorise_emc:engineering/root",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:portable_crafting_table",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.resonant_crafting.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.resonant_crafting.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "velorise_emc:portable_crafting_table"
+          }
+        ]
+      }
+    }
+  }
+}

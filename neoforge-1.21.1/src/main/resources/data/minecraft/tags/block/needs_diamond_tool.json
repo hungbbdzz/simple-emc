@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "velorise_emc:verdant_resonant_ore",
+    "velorise_emc:deepslate_verdant_resonant_ore",
+    "velorise_emc:verdant_resonant_block",
+    "velorise_emc:alchemical_coal_block",
+    "velorise_emc:condensed_core_block_i"
+  ]
+}

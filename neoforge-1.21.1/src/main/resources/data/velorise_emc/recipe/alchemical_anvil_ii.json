@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "velorise_emc:alchemical_anvil_i"
+    },
+    {
+      "item": "velorise_emc:wireless_core_t2"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:alchemical_anvil_ii"
+  }
+}

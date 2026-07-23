@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " ER",
+    " CE",
+    "S  "
+  ],
+  "key": {
+    "E": {
+      "item": "minecraft:echo_shard"
+    },
+    "R": {
+      "item": "minecraft:recovery_compass"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:resonant_echo"
+  }
+}

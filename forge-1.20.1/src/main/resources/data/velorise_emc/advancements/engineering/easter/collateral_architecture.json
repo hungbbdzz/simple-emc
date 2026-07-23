@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/ghastfire_staff",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:ghastfire_staff"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.collateral_architecture.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.collateral_architecture.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

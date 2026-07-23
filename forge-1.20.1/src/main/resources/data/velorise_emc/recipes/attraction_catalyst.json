@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "I": {
+      "item": "minecraft:iron_block"
+    },
+    "R": {
+      "item": "minecraft:redstone_block"
+    },
+    "D": {
+      "item": "minecraft:lapis_block"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    }
+  },
+  "pattern": [
+    "I I",
+    "R D",
+    "RCD"
+  ],
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:attraction_catalyst"
+  }
+}

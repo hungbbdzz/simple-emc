@@ -1,0 +1,12 @@
+{
+  "variants": {
+    "active=false,tier=1": { "model": "velorise_emc:block/aura_node_t1_dormant" },
+    "active=true,tier=1":  { "model": "velorise_emc:block/aura_node_t1_active" },
+    "active=false,tier=2": { "model": "velorise_emc:block/aura_node_t2_dormant" },
+    "active=true,tier=2":  { "model": "velorise_emc:block/aura_node_t2_active" },
+    "active=false,tier=3": { "model": "velorise_emc:block/aura_node_t3_dormant" },
+    "active=true,tier=3":  { "model": "velorise_emc:block/aura_node_t3_active" },
+    "active=false,tier=4": { "model": "velorise_emc:block/aura_node_t4_dormant" },
+    "active=true,tier=4":  { "model": "velorise_emc:block/aura_node_t4_active" }
+  }
+}

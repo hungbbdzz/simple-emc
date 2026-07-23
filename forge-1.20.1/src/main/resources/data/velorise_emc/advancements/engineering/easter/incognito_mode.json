@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/webcaster",
+  "display": {
+    "icon": {
+      "item": "minecraft:fermented_spider_eye"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.incognito_mode.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.incognito_mode.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

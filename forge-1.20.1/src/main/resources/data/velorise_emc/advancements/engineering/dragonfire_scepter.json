@@ -1,0 +1,23 @@
+{
+  "parent": "velorise_emc:engineering/root",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:dragonfire_scepter"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.dragonfire_scepter.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.dragonfire_scepter.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

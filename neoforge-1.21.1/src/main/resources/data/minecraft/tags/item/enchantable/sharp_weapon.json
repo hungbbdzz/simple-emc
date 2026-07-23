@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "velorise_emc:verdant_resonant_sword",
+    "velorise_emc:infernal_resonant_sword",
+    "velorise_emc:aetheric_resonant_sword",
+    "velorise_emc:echoing_resonant_sword",
+    "velorise_emc:verdant_resonant_axe",
+    "velorise_emc:infernal_resonant_axe",
+    "velorise_emc:aetheric_resonant_axe",
+    "velorise_emc:echoing_resonant_axe"
+  ]
+}

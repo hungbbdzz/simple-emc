@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:journey/first_materialization",
+  "display": {
+    "icon": {
+      "id": "minecraft:chest",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.materialize_1024.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.materialize_1024.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 100
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

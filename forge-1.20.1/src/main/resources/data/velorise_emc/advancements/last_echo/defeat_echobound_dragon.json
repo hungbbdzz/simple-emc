@@ -1,0 +1,20 @@
+{
+  "parent": "velorise_emc:world/silence_below",
+  "display": {
+    "icon": { "item": "velorise_emc:heart_of_the_last_echo" },
+    "title": { "translate": "advancement.velorise_emc.defeat_echobound_dragon.title" },
+    "description": { "translate": "advancement.velorise_emc.defeat_echobound_dragon.description" },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false,
+    "background": "minecraft:textures/gui/advancements/backgrounds/end.png"
+  },
+  "criteria": {
+    "defeated": {
+      "trigger": "minecraft:player_killed_entity",
+      "conditions": { "entity": { "type": "velorise_emc:echobound_dragon" } }
+    }
+  },
+  "rewards": { "experience": 5000 }
+}

@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "velorise_emc:resonance_jukebox",
+    "velorise_emc:portable_crafting_table",
+    "velorise_emc:portable_loom",
+    "velorise_emc:portable_cartography_table"
+  ]
+}

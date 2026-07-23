@@ -1,0 +1,28 @@
+{
+  "parent": "velorise_emc:engineering/root",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:condensed_core_block_i"
+    },
+    "title": "Passive Income",
+    "description": "Finally, a machine that plays the game for you.",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:condensed_core_block_i"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

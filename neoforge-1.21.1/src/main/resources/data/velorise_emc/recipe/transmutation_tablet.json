@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "W": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "T": {
+      "item": "velorise_emc:transmutation_table"
+    }
+  },
+  "pattern": [
+    "EWE",
+    "WTW",
+    "EWE"
+  ],
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:transmutation_tablet"
+  }
+}

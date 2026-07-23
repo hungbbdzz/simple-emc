@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:world/end_answers",
+  "display": {
+    "icon": {
+      "item": "minecraft:echo_shard"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.silence_below.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.silence_below.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 300
+  }
+}

@@ -1,0 +1,18 @@
+plugins {
+    id 'base'
+}
+
+description = 'Shared Minecraft gameplay sources compiled by both loader targets.'
+
+// This project deliberately has no JavaCompile task. The shared source root is
+// attached to each loader module, where it compiles against the target Minecraft API.
+tasks.register('validateSharedSources', Exec) {
+    group = 'verification'
+    description = 'Checks shared gameplay sources for loader imports and duplicate classes.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'scripts/check_shared_source_integrity.py'
+}
+
+tasks.named('check') {
+    dependsOn 'validateSharedSources'
+}

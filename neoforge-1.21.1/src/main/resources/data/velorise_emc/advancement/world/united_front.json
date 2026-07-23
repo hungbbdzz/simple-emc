@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:world/war_party",
+  "display": {
+    "icon": {
+      "id": "minecraft:nether_star",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.united_front.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.united_front.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 200
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

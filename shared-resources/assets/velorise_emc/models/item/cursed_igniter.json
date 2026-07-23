@@ -1,0 +1,6 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "velorise_emc:item/cursed_igniter"
+  }
+}

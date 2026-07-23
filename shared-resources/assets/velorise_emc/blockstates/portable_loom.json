@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": {"model":"velorise_emc:block/portable_loom"},
+    "facing=east": {"model":"velorise_emc:block/portable_loom","y":90},
+    "facing=south": {"model":"velorise_emc:block/portable_loom","y":180},
+    "facing=west": {"model":"velorise_emc:block/portable_loom","y":270}
+  }
+}

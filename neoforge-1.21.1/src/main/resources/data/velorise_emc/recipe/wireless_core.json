@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "P": {
+      "item": "velorise_emc:philosophers_stone"
+    }
+  },
+  "pattern": [
+    "DED",
+    "EPE",
+    "DED"
+  ],
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:wireless_core_t1"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/resonant_furnace",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:resonant_furnace"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.not_a_duplication_bug.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.not_a_duplication_bug.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 100
+  }
+}

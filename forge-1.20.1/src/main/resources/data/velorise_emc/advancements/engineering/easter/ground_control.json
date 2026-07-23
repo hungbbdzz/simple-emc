@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/shulker_launcher",
+  "display": {
+    "icon": {
+      "item": "minecraft:shulker_shell"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.easter.ground_control.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.easter.ground_control.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

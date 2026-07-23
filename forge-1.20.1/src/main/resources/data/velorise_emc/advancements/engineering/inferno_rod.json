@@ -1,0 +1,23 @@
+{
+  "parent": "velorise_emc:engineering/root",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:inferno_rod"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.inferno_rod.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.inferno_rod.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

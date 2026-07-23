@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:blasting",
+  "category": "misc",
+  "cookingtime": 800,
+  "experience": 3.0,
+  "ingredient": {
+    "item": "velorise_emc:raw_aetheric_resonant"
+  },
+  "result": "velorise_emc:aetheric_resonant_ingot"
+}

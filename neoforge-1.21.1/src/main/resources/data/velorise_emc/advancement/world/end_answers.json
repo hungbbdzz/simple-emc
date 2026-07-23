@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:world/trial_of_nether",
+  "display": {
+    "icon": {
+      "id": "minecraft:dragon_breath",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.end_answers.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.end_answers.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 150
+  }
+}

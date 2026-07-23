@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "velorise_emc:block/verdant_resonant_block"
+    }
+  }
+}

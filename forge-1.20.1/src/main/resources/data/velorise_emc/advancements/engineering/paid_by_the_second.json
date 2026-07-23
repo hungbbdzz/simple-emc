@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:engineering/hourglass",
+  "display": {
+    "icon": {
+      "item": "minecraft:clock"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.paid_by_the_second.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.paid_by_the_second.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

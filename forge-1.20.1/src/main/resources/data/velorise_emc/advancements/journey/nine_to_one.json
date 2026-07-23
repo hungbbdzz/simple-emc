@@ -1,0 +1,38 @@
+{
+  "parent": "velorise_emc:journey/wireless_core",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:condensed_core_i"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.nine_to_one.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.nine_to_one.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "item_0": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:condensed_core_i",
+              "velorise_emc:condensed_core_ii",
+              "velorise_emc:condensed_core_iii",
+              "velorise_emc:condensed_core_iv"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}

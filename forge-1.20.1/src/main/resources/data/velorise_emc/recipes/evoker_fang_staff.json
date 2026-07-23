@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " BT",
+    " CE",
+    "S  "
+  ],
+  "key": {
+    "B": {
+      "item": "minecraft:bone_block"
+    },
+    "T": {
+      "item": "minecraft:totem_of_undying"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "E": {
+      "item": "minecraft:emerald_block"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:evoker_fang_staff"
+  }
+}

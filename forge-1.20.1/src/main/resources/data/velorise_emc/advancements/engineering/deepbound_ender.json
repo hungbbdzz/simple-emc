@@ -1,0 +1,35 @@
+{
+  "parent": "velorise_emc:engineering/machine_core_i",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:deepbound_ender_chest"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.deepbound_ender.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.deepbound_ender.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 100
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:deepbound_ender_chest"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

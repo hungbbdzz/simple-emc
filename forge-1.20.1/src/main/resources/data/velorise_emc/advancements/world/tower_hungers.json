@@ -1,0 +1,23 @@
+{
+  "parent": "velorise_emc:world/root",
+  "display": {
+    "icon": {
+      "item": "minecraft:soul_lantern"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.tower_hungers.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.tower_hungers.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "cookingtime": 1600,
+  "experience": 4.0,
+  "ingredient": {
+    "item": "velorise_emc:raw_echoing_resonant"
+  },
+  "result": {
+    "id": "velorise_emc:echoing_resonant_ingot"
+  }
+}

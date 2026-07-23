@@ -1,0 +1,35 @@
+{
+  "parent": "velorise_emc:journey/alchemical_coal",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:mobius_fuel"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.journey.mobius_fuel.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.journey.mobius_fuel.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "rewards": {
+    "experience": 50
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:mobius_fuel"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

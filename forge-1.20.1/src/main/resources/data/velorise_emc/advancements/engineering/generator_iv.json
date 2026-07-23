@@ -1,0 +1,28 @@
+{
+  "parent": "velorise_emc:engineering/generator_iii",
+  "display": {
+    "icon": {
+      "item": "velorise_emc:condensed_core_block_iv"
+    },
+    "title": "Central Bank of Me",
+    "description": "Financial regulation has left the server.",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "velorise_emc:condensed_core_block_iv"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "parent": "velorise_emc:engineering/machine_core_i",
+  "display": {
+    "icon": {
+      "id": "velorise_emc:wireless_core_t4",
+      "count": 1
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.engineering.machine_core_iv.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.engineering.machine_core_iv.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 250
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " WF",
+    " CW",
+    "S  "
+  ],
+  "key": {
+    "W": {
+      "item": "minecraft:cobweb"
+    },
+    "F": {
+      "item": "minecraft:fermented_spider_eye"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "count": 1,
+    "id": "velorise_emc:webcaster"
+  }
+}

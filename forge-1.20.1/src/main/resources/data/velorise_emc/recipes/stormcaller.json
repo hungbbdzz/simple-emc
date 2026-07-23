@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " LT",
+    " CK",
+    "S  "
+  ],
+  "key": {
+    "L": {
+      "item": "minecraft:lightning_rod"
+    },
+    "T": {
+      "item": "minecraft:trident"
+    },
+    "C": {
+      "item": "velorise_emc:wireless_core_t1"
+    },
+    "K": {
+      "item": "minecraft:copper_block"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "count": 1,
+    "item": "velorise_emc:stormcaller"
+  }
+}

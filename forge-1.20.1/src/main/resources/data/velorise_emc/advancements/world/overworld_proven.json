@@ -1,0 +1,26 @@
+{
+  "parent": "velorise_emc:world/root",
+  "display": {
+    "icon": {
+      "item": "minecraft:iron_sword"
+    },
+    "title": {
+      "translate": "advancements.velorise_emc.world.overworld_proven.title"
+    },
+    "description": {
+      "translate": "advancements.velorise_emc.world.overworld_proven.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "rewards": {
+    "experience": 50
+  }
+}
