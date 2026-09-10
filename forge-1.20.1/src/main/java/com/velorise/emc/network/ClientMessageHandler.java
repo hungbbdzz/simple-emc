@@ -18,11 +18,14 @@ import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class ClientMessageHandler {
     private record JukeboxSoundKey(ResourceLocation dimension, long blockPos) {}
 
     private static final Map<JukeboxSoundKey, MutableJukeboxSoundInstance> JUKEBOX_SOUNDS = new HashMap<>();
+    private static int lastEmcSyncFingerprint = Integer.MIN_VALUE;
+    private static boolean pendingEmcRecalculation;
 
     public static void handleSyncPlayerEMC(SyncPlayerEMCMessage msg) {
         LocalPlayer player = Minecraft.getInstance().player;
@@ -53,13 +56,14 @@ public class ClientMessageHandler {
     }
 
     public static void handleSyncCustomEMC(SyncCustomEMCMessage msg) {
+        int fingerprint = Objects.hash(msg.getValueMode(), msg.getOverrides(), msg.getPolicyOverrides());
+        if (fingerprint == lastEmcSyncFingerprint) return;
+
         EMCRegistry.setClientSyncedValueMode(msg.getValueMode());
         Map<Item, Long> clientOverrides = new HashMap<>();
         msg.getOverrides().forEach((rl, val) -> {
             Item item = BuiltInRegistries.ITEM.get(rl);
-            if (item != null && item != Items.AIR) {
-                clientOverrides.put(item, val);
-            }
+            if (item != null && item != Items.AIR) clientOverrides.put(item, val);
         });
         EMCRegistry.setClientSyncedOverrides(clientOverrides);
         Map<Item, EmcPolicyOverride> clientPolicies = new HashMap<>();
@@ -69,13 +73,26 @@ public class ClientMessageHandler {
         });
         EMCRegistry.setClientSyncedPolicyOverrides(clientPolicies);
 
-        ClientLevel level = Minecraft.getInstance().level;
-        if (level != null) {
-            EMCRegistry.clientReloadAndRecalculate(
-                level.getRecipeManager(),
-                level.registryAccess()
-            );
-        }
+        lastEmcSyncFingerprint = fingerprint;
+        pendingEmcRecalculation = true;
+        flushPendingEmcRecalculation();
+    }
+
+    public static void flushPendingEmcRecalculation() {
+        if (!pendingEmcRecalculation) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientLevel level = minecraft.level;
+        if (level == null || minecraft.getConnection() == null) return;
+        pendingEmcRecalculation = false;
+        EMCRegistry.clientReloadAndRecalculate(
+            minecraft.getConnection().getRecipeManager(), level.registryAccess());
+    }
+
+    public static void clearServerSyncState() {
+        clearJukeboxAudio();
+        lastEmcSyncFingerprint = Integer.MIN_VALUE;
+        pendingEmcRecalculation = false;
+        EMCRegistry.resetClientRecalculationGuard();
     }
 
     public static void handleOpenConfigScreen(OpenConfigScreenMessage msg) {

@@ -10,7 +10,7 @@ tasks.register('validateSharedSources', Exec) {
     group = 'verification'
     description = 'Checks shared gameplay sources for loader imports and duplicate classes.'
     workingDir rootProject.projectDir
-    commandLine 'python3', 'scripts/check_shared_source_integrity.py'
+    commandLine 'python', 'scripts/check_shared_source_integrity.py'
 }
 
 tasks.named('check') {

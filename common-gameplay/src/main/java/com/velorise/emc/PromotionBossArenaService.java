@@ -64,12 +64,12 @@ public final class PromotionBossArenaService {
     }
 
     public static void buildBulwarkArena(ServerLevel level, BlockPos center) {
-        buildEndArena(level, center);
-        BossArenaRegistryData.get(level.getServer()).register(BossArenaRegistryData.Kind.AETHERIC, center);
+        for (int x = bulwarkMinX(); x <= bulwarkMaxX(); x++) buildBulwarkColumn(level, center, x);
+        for (int step = 0; step < bulwarkDecorationCount(); step++) buildBulwarkDecoration(level, center, step);
     }
     public static void buildDeepboundArena(ServerLevel level, BlockPos center) {
-        buildDeepArena(level, center);
-        BossArenaRegistryData.get(level.getServer()).register(BossArenaRegistryData.Kind.DEEPBOUND, center);
+        for (int x = deepboundMinX(); x <= deepboundMaxX(); x++) buildDeepboundColumn(level, center, x);
+        for (int step = 0; step < deepboundDecorationCount(); step++) buildDeepboundDecoration(level, center, step);
     }
 
     public static boolean hasBulwarkArena(ServerLevel level, BlockPos center) {
@@ -130,41 +130,56 @@ public final class PromotionBossArenaService {
         return summonDeepboundBoss(level, center);
     }
 
-    private static void buildEndArena(ServerLevel level, BlockPos center) {
-        clearArenaSpace(level, center, 33, 0, 24);
-        final int radius = 26;
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                double distance = Math.sqrt(x * x + z * z);
-                if (distance > radius + 0.25D) continue;
+    static int bulwarkMinX() { return -33; }
+    static int bulwarkMaxX() { return 33; }
+    static int bulwarkDecorationCount() { return 17; }
 
-                BlockPos floor = center.offset(x, -1, z);
-                set(level, floor, endFloorState(x, z, distance));
-                set(level, floor.below(), Blocks.END_STONE_BRICKS.defaultBlockState());
-                set(level, floor.below(2), Blocks.END_STONE.defaultBlockState());
-
-                if (ring(distance, 8.0D, 0.55D) || ring(distance, 16.0D, 0.55D)) {
-                    set(level, center.offset(x, 0, z), Blocks.PURPUR_SLAB.defaultBlockState());
-                }
-                boolean avenue = (Math.abs(x) <= 2 || Math.abs(z) <= 2) && distance >= 9.0D && distance <= 23.0D;
-                if (avenue) set(level, center.offset(x, 0, z), ((Math.abs(x + z) & 3) == 0
-                    ? Blocks.CHISELED_QUARTZ_BLOCK : Blocks.SMOOTH_QUARTZ_SLAB).defaultBlockState());
+    static void buildBulwarkColumn(ServerLevel level, BlockPos center, int x) {
+        int clearRadius = 33;
+        for (int z = -clearRadius; z <= clearRadius; z++) {
+            if (x * x + z * z > (clearRadius + 1) * (clearRadius + 1)) continue;
+            for (int y = 0; y <= 24; y++) {
+                BlockPos pos = center.offset(x, y, z);
+                if (!level.getBlockState(pos).isAir()) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
             }
         }
 
-        for (int i = 0; i < 8; i++) {
-            double angle = i * Math.PI / 4.0D;
+        final int radius = 26;
+        if (Math.abs(x) > radius) return;
+        for (int z = -radius; z <= radius; z++) {
+            double distance = Math.sqrt(x * x + z * z);
+            if (distance > radius + 0.25D) continue;
+            BlockPos floor = center.offset(x, -1, z);
+            set(level, floor, endFloorState(x, z, distance));
+            set(level, floor.below(), Blocks.END_STONE_BRICKS.defaultBlockState());
+            set(level, floor.below(2), Blocks.END_STONE.defaultBlockState());
+            if (ring(distance, 8.0D, 0.55D) || ring(distance, 16.0D, 0.55D)) {
+                set(level, center.offset(x, 0, z), Blocks.PURPUR_SLAB.defaultBlockState());
+            }
+            boolean avenue = (Math.abs(x) <= 2 || Math.abs(z) <= 2) && distance >= 9.0D && distance <= 23.0D;
+            if (avenue) set(level, center.offset(x, 0, z), ((Math.abs(x + z) & 3) == 0
+                ? Blocks.CHISELED_QUARTZ_BLOCK : Blocks.SMOOTH_QUARTZ_SLAB).defaultBlockState());
+        }
+    }
+
+    static void buildBulwarkDecoration(ServerLevel level, BlockPos center, int step) {
+        if (step >= 0 && step < 8) {
+            double angle = step * Math.PI / 4.0D;
             BlockPos tower = center.offset(round(Math.cos(angle) * 19.0D), 0, round(Math.sin(angle) * 19.0D));
             buildAethericTower(level, tower);
+            return;
         }
-
-        for (int i = 0; i < 8; i++) {
-            double angle = (i + 0.5D) * Math.PI / 4.0D;
+        if (step >= 8 && step < 16) {
+            int index = step - 8;
+            double angle = (index + 0.5D) * Math.PI / 4.0D;
             BlockPos obelisk = center.offset(round(Math.cos(angle) * 23.0D), 0, round(Math.sin(angle) * 23.0D));
             buildEndObelisk(level, obelisk);
+            return;
         }
-
-        buildEndDais(level, center);
+        if (step == 16) {
+            buildEndDais(level, center);
+            BossArenaRegistryData.get(level.getServer()).register(BossArenaRegistryData.Kind.AETHERIC, center);
+        }
     }
 
     private static BlockState endFloorState(int x, int z, double distance) {
@@ -285,41 +300,52 @@ public final class PromotionBossArenaService {
         }
     }
 
-    private static void buildDeepArena(ServerLevel level, BlockPos center) {
-        // The enlarged towers now reach Y + 29 and include lantern crowns. Leave a
-        // little additional clearance so terrain and trees cannot cut into the silhouette.
-        clearArenaSpace(level, center, 36, -1, 34);
-        final int radius = 28;
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                double distance = Math.sqrt(x * x + z * z);
-                if (distance > radius + 0.25D) continue;
+    static int deepboundMinX() { return -36; }
+    static int deepboundMaxX() { return 36; }
+    static int deepboundDecorationCount() { return 17; }
 
-                BlockPos floor = center.offset(x, -1, z);
-                set(level, floor, deepFloorState(x, z, distance));
-                set(level, floor.below(), distance < 22.0D
-                    ? Blocks.REINFORCED_DEEPSLATE.defaultBlockState() : Blocks.DEEPSLATE.defaultBlockState());
-                set(level, floor.below(2), Blocks.DEEPSLATE.defaultBlockState());
-
-                if (ring(distance, 9.0D, 0.65D) || ring(distance, 17.0D, 0.65D) || ring(distance, 24.0D, 0.65D)) {
-                    set(level, center.offset(x, 0, z), Blocks.POLISHED_DEEPSLATE_SLAB.defaultBlockState());
-                }
+    static void buildDeepboundColumn(ServerLevel level, BlockPos center, int x) {
+        int clearRadius = 36;
+        for (int z = -clearRadius; z <= clearRadius; z++) {
+            if (x * x + z * z > (clearRadius + 1) * (clearRadius + 1)) continue;
+            for (int y = -1; y <= 34; y++) {
+                BlockPos pos = center.offset(x, y, z);
+                if (!level.getBlockState(pos).isAir()) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
             }
         }
 
-        // Build the monumental causeways before the tower foundations so their
-        // ornament flows underneath and terminates cleanly inside every plinth.
-        for (int i = 0; i < 8; i++) {
-            buildDeepboundCauseway(level, center, i);
+        final int radius = 28;
+        if (Math.abs(x) > radius) return;
+        for (int z = -radius; z <= radius; z++) {
+            double distance = Math.sqrt(x * x + z * z);
+            if (distance > radius + 0.25D) continue;
+            BlockPos floor = center.offset(x, -1, z);
+            set(level, floor, deepFloorState(x, z, distance));
+            set(level, floor.below(), distance < 22.0D
+                ? Blocks.REINFORCED_DEEPSLATE.defaultBlockState() : Blocks.DEEPSLATE.defaultBlockState());
+            set(level, floor.below(2), Blocks.DEEPSLATE.defaultBlockState());
+            if (ring(distance, 9.0D, 0.65D) || ring(distance, 17.0D, 0.65D) || ring(distance, 24.0D, 0.65D)) {
+                set(level, center.offset(x, 0, z), Blocks.POLISHED_DEEPSLATE_SLAB.defaultBlockState());
+            }
         }
+    }
 
-        for (int i = 0; i < 8; i++) {
-            double angle = i * Math.PI / 4.0D;
+    static void buildDeepboundDecoration(ServerLevel level, BlockPos center, int step) {
+        if (step >= 0 && step < 8) {
+            buildDeepboundCauseway(level, center, step);
+            return;
+        }
+        if (step >= 8 && step < 16) {
+            int index = step - 8;
+            double angle = index * Math.PI / 4.0D;
             BlockPos tower = center.offset(round(Math.cos(angle) * 20.0D), 0, round(Math.sin(angle) * 20.0D));
-            buildDeepboundTower(level, tower, i);
+            buildDeepboundTower(level, tower, index);
+            return;
         }
-
-        buildDeepboundAltar(level, center);
+        if (step == 16) {
+            buildDeepboundAltar(level, center);
+            BossArenaRegistryData.get(level.getServer()).register(BossArenaRegistryData.Kind.DEEPBOUND, center);
+        }
     }
 
     private static BlockState deepFloorState(int x, int z, double distance) {

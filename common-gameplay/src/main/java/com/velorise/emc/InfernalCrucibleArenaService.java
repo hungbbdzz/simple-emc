@@ -66,9 +66,30 @@ public final class InfernalCrucibleArenaService {
     }
 
     public static void buildArena(ServerLevel level, BlockPos center) {
-        clear(level, center, 40, -5, 30);
+        for (int x = incrementalMinX(); x <= incrementalMaxX(); x++) buildArenaColumn(level, center, x);
+        for (int step = 0; step < incrementalDecorationCount(); step++) buildArenaDecoration(level, center, step);
+    }
+
+    static int incrementalMinX() { return -40; }
+    static int incrementalMaxX() { return 40; }
+    static int incrementalDecorationCount() { return 95; }
+
+    /** Builds one X slice of the expensive clear/floor phase. */
+    static void buildArenaColumn(ServerLevel level, BlockPos center, int x) {
+        int clearRadius = 40;
+        if (x >= -clearRadius && x <= clearRadius) {
+            for (int z = -clearRadius; z <= clearRadius; z++) {
+                if (x * x + z * z > clearRadius * clearRadius) continue;
+                for (int y = -5; y <= 30; y++) {
+                    BlockPos pos = center.offset(x, y, z);
+                    if (!level.getBlockState(pos).isAir()) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+                }
+            }
+        }
+
         int radius = ARENA_RADIUS;
-        for (int x = -radius; x <= radius; x++) for (int z = -radius; z <= radius; z++) {
+        if (Math.abs(x) > radius) return;
+        for (int z = -radius; z <= radius; z++) {
             double d = Math.sqrt(x * x + z * z);
             if (d > radius + 0.25D) continue;
             BlockPos floor = center.offset(x, -1, z);
@@ -76,25 +97,37 @@ public final class InfernalCrucibleArenaService {
             set(level, floor.below(), Blocks.BLACKSTONE.defaultBlockState());
             set(level, floor.below(2), Blocks.BASALT.defaultBlockState());
 
-            if (ring(d, 9, .65) || ring(d, 18, .65) || ring(d, 28, .7))
+            if (ring(d, 9, .65) || ring(d, 18, .65) || ring(d, 28, .7)) {
                 set(level, center.offset(x, 0, z), Blocks.POLISHED_BLACKSTONE_BRICK_SLAB.defaultBlockState());
-
+            }
             boolean bridge = (Math.abs(x) <= 2 || Math.abs(z) <= 2) && d >= 8 && d <= 33;
             if (bridge) set(level, center.offset(x, 0, z), ((Math.abs(x + z) & 3) == 0
                 ? Blocks.CHISELED_POLISHED_BLACKSTONE : Blocks.POLISHED_BLACKSTONE_BRICKS).defaultBlockState());
         }
+    }
 
-        for (int i = 0; i < 4; i++) {
-            double a = i * Math.PI / 2.0D;
-            buildPylon(level, center.offset(round(Math.cos(a) * 23), 0, round(Math.sin(a) * 23)), i);
+    /** Builds one bounded decoration/stabilization step. */
+    static void buildArenaDecoration(ServerLevel level, BlockPos center, int step) {
+        if (step >= 0 && step < 4) {
+            double a = step * Math.PI / 2.0D;
+            buildPylon(level, center.offset(round(Math.cos(a) * 23), 0, round(Math.sin(a) * 23)), step);
+            return;
         }
-        for (int i = 0; i < 8; i++) {
-            double a = (i + .5D) * Math.PI / 4.0D;
+        if (step >= 4 && step < 12) {
+            int index = step - 4;
+            double a = (index + .5D) * Math.PI / 4.0D;
             buildVent(level, center.offset(round(Math.cos(a) * 16), 0, round(Math.sin(a) * 16)));
+            return;
         }
-        buildAltar(level, center);
-        stabilizeOuterRing(level, center);
-        BossArenaRegistryData.get(level.getServer()).register(BossArenaRegistryData.Kind.INFERNAL, center);
+        if (step == 12) {
+            buildAltar(level, center);
+            return;
+        }
+        if (step >= 13 && step < 94) {
+            stabilizeOuterRingColumn(level, center, step - 13 - 40);
+            return;
+        }
+        if (step == 94) BossArenaRegistryData.get(level.getServer()).register(BossArenaRegistryData.Kind.INFERNAL, center);
     }
 
     private static BlockState floorState(int x, int z, double d) {
@@ -257,7 +290,12 @@ public final class InfernalCrucibleArenaService {
     }
 
     private static void stabilizeOuterRing(ServerLevel level, BlockPos center) {
-        for (int x = -ARENA_RADIUS; x <= ARENA_RADIUS; x++) for (int z = -ARENA_RADIUS; z <= ARENA_RADIUS; z++) {
+        for (int x = -40; x <= 40; x++) stabilizeOuterRingColumn(level, center, x);
+    }
+
+    private static void stabilizeOuterRingColumn(ServerLevel level, BlockPos center, int x) {
+        if (Math.abs(x) > ARENA_RADIUS) return;
+        for (int z = -ARENA_RADIUS; z <= ARENA_RADIUS; z++) {
             double d = Math.sqrt(x * x + z * z);
             if (d < 29.0D || d > 34.5D) continue;
             for (int y = 2; y >= -3; y--) {

@@ -870,18 +870,17 @@ public class VeloriseEMC {
         @SubscribeEvent
         public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
             if (event.getEntity() instanceof ServerPlayer player) {
+                // Player data changes on respawn; global EMC/config state does not.
                 syncPlayerData(player);
-                syncCustomEMCOverrides(player);
-                syncGameplayConfig(player);
             }
         }
 
         @SubscribeEvent
         public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
             if (event.getEntity() instanceof ServerPlayer player) {
+                // Avoid resending global configuration and rebuilding the complete EMC
+                // recipe graph every time a player crosses a dimension boundary.
                 syncPlayerData(player);
-                syncCustomEMCOverrides(player);
-                syncGameplayConfig(player);
             }
         }
 
@@ -1320,6 +1319,7 @@ public class VeloriseEMC {
             }
             if (registries != null) {
                 System.out.println("[VeloriseEMC] RecipesUpdatedEvent – recalculating client EMC...");
+                EMCRegistry.markClientRecipesDirty();
                 EMCRegistry.clientReloadAndRecalculate(event.getRecipeManager(), registries);
             } else {
                 System.out.println("[VeloriseEMC] RecipesUpdatedEvent fired but no registries available – skipping.");
@@ -1330,20 +1330,15 @@ public class VeloriseEMC {
         public static void onLevelLoad(net.minecraftforge.event.level.LevelEvent.Load event) {
             if (!event.getLevel().isClientSide()) return;
             com.velorise.emc.network.ClientMessageHandler.clearJukeboxAudio();
-            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-            if (mc.level != null && mc.getConnection() != null) {
-                System.out.println("[VeloriseEMC] LevelEvent.Load (client) – recalculating client EMC...");
-                EMCRegistry.clientReloadAndRecalculate(
-                    mc.getConnection().getRecipeManager(),
-                    mc.level.registryAccess()
-                );
-            }
+            // Flush only a server-sync calculation that arrived before the new
+            // ClientLevel existed. Dimension loading alone never triggers a rebuild.
+            com.velorise.emc.network.ClientMessageHandler.flushPendingEmcRecalculation();
         }
 
         @SubscribeEvent
         public static void onLoggingOut(net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
             System.out.println("[VeloriseEMC] Logging out – clearing server-synced overrides.");
-            com.velorise.emc.network.ClientMessageHandler.clearJukeboxAudio();
+            com.velorise.emc.network.ClientMessageHandler.clearServerSyncState();
             EMCRegistry.clearClientSyncedOverrides();
         }
     }

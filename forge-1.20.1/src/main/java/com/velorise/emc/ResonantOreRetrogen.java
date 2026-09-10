@@ -13,12 +13,13 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,56 +29,81 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Mod.EventBusSubscriber(modid = VeloriseEMC.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class ResonantOreRetrogen {
     private static final String BLESSED_TIER = "velorise_emc:blessed_tier";
-    private static final int CHUNKS_PER_TICK = 2;
-    private static final ConcurrentLinkedQueue<Pending> QUEUE = new ConcurrentLinkedQueue<>();
-    private static final Set<String> QUEUED = ConcurrentHashMap.newKeySet();
-    private static final Map<UUID, String> LAST_PLAYER_CHUNK = new ConcurrentHashMap<>();
+    private static final int MAX_CHUNKS_PER_TICK = 2;
+    private static final int MAX_QUEUED_CHUNKS = 4096;
+    private static final long TICK_BUDGET_NANOS = 1_250_000L;
+    private static final Map<MinecraftServer, State> STATES = new ConcurrentHashMap<>();
 
     private ResonantOreRetrogen() {}
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
-        if (event.getLevel() instanceof ServerLevel level && event.getChunk() instanceof LevelChunk chunk) enqueue(level, chunk.getPos());
+        if (event.getLevel() instanceof ServerLevel level && event.getChunk() instanceof LevelChunk chunk) {
+            enqueue(level, chunk.getPos());
+        }
     }
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
-        MinecraftServer server = event.getServer();
-        trackPlayers(server);
-        for (int i = 0; i < CHUNKS_PER_TICK; i++) {
-            Pending pending = QUEUE.poll();
-            if (pending == null) break;
-            QUEUED.remove(pending.key());
-            ServerLevel level = server.getLevel(pending.dimension());
-            if (level != null && level.hasChunk(pending.chunk().x, pending.chunk().z)) bless(level, level.getChunk(pending.chunk().x, pending.chunk().z));
-        }
+        if (event.phase == TickEvent.Phase.END) processTick(event.getServer());
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        STATES.remove(event.getServer());
     }
 
     public static void enqueueAroundPlayers(MinecraftServer server, int radius) {
+        int boundedRadius = Math.max(0, Math.min(radius, 8));
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             ServerLevel level = player.serverLevel();
             ChunkPos center = player.chunkPosition();
-            for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
-                int x = center.x + dx, z = center.z + dz;
-                if (level.hasChunk(x, z)) enqueue(level, new ChunkPos(x, z));
+            for (int dx = -boundedRadius; dx <= boundedRadius; dx++) {
+                for (int dz = -boundedRadius; dz <= boundedRadius; dz++) {
+                    int x = center.x + dx;
+                    int z = center.z + dz;
+                    if (level.getChunkSource().getChunkNow(x, z) != null) enqueue(level, new ChunkPos(x, z));
+                }
             }
         }
     }
 
-    private static void trackPlayers(MinecraftServer server) {
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            ChunkPos chunk = player.chunkPosition();
-            String key = player.level().dimension().location() + ":" + chunk.toLong();
-            if (!key.equals(LAST_PLAYER_CHUNK.put(player.getUUID(), key))) enqueue(player.serverLevel(), chunk);
+    private static void processTick(MinecraftServer server) {
+        State state = STATES.computeIfAbsent(server, ignored -> new State());
+        trackPlayers(server, state);
+        long deadline = System.nanoTime() + TICK_BUDGET_NANOS;
+
+        for (int processed = 0; processed < MAX_CHUNKS_PER_TICK && System.nanoTime() < deadline; processed++) {
+            Pending pending = state.queue.poll();
+            if (pending == null) break;
+            state.queued.remove(pending.key());
+
+            ServerLevel level = server.getLevel(pending.dimension());
+            if (level == null) continue;
+            LevelChunk chunk = level.getChunkSource().getChunkNow(pending.chunk().x, pending.chunk().z);
+            if (chunk != null) bless(level, chunk);
         }
+    }
+
+    private static void trackPlayers(MinecraftServer server, State state) {
+        Set<UUID> online = ConcurrentHashMap.newKeySet();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            online.add(player.getUUID());
+            ChunkPos chunk = player.chunkPosition();
+            PendingKey key = new PendingKey(player.level().dimension(), chunk.toLong());
+            if (!key.equals(state.lastPlayerChunk.put(player.getUUID(), key))) enqueue(player.serverLevel(), chunk);
+        }
+        state.lastPlayerChunk.keySet().removeIf(id -> !online.contains(id));
     }
 
     private static void enqueue(ServerLevel level, ChunkPos chunk) {
         int worldTier = WorldProgressionData.get(level.getServer()).snapshot().worldTier();
         if (worldTier <= 0) return;
-        String key = level.dimension().location() + ":" + chunk.toLong();
-        if (QUEUED.add(key)) QUEUE.add(new Pending(level.dimension(), chunk, key));
+
+        State state = STATES.computeIfAbsent(level.getServer(), ignored -> new State());
+        if (state.queued.size() >= MAX_QUEUED_CHUNKS) return;
+        PendingKey key = new PendingKey(level.dimension(), chunk.toLong());
+        if (state.queued.add(key)) state.queue.add(new Pending(level.dimension(), chunk, key));
     }
 
     private static void bless(ServerLevel level, LevelChunk chunk) {
@@ -175,5 +201,12 @@ public final class ResonantOreRetrogen {
         return value ^ value >>> 31;
     }
 
-    private record Pending(ResourceKey<Level> dimension, ChunkPos chunk, String key) {}
+    private static final class State {
+        private final ConcurrentLinkedQueue<Pending> queue = new ConcurrentLinkedQueue<>();
+        private final Set<PendingKey> queued = ConcurrentHashMap.newKeySet();
+        private final Map<UUID, PendingKey> lastPlayerChunk = new ConcurrentHashMap<>();
+    }
+
+    private record PendingKey(ResourceKey<Level> dimension, long chunk) {}
+    private record Pending(ResourceKey<Level> dimension, ChunkPos chunk, PendingKey key) {}
 }

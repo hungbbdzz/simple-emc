@@ -2,7 +2,7 @@
   "parent": "velorise_emc:engineering/machine_core_i",
   "display": {
     "icon": {
-      "id": "velorise_emc:tidal_conduit",
+      "id": "velorise_emc:attraction_catalyst",
       "count": 1
     },
     "title": {
@@ -22,7 +22,7 @@
       "conditions": {
         "items": [
           {
-            "items": "velorise_emc:tidal_conduit"
+            "items": "velorise_emc:attraction_catalyst"
           }
         ]
       }

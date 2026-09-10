@@ -57,6 +57,10 @@ public final class EMCRegistry {
     private static EmcValueMode configuredValueMode = EmcValueMode.DEFAULT;
     private static EmcValueMode clientSyncedValueMode = null;
     private static EmcValueMode activeValueMode = EmcValueMode.DEFAULT;
+    private static int clientRecipeRevision;
+    private static int lastClientRecipeRevision = Integer.MIN_VALUE;
+    private static int lastClientStateFingerprint = Integer.MIN_VALUE;
+    private static boolean clientRecalculationInProgress;
     private static final File CUSTOM_EMC_FILE = new File("config/velorise_emc/custom_emc.json");
     private static final File VALUE_MODE_FILE = new File("config/velorise_emc/emc_value_mode.json");
     private static final File ITEM_POLICY_FILE = new File("config/velorise_emc/emc_item_policies.json");
@@ -793,6 +797,7 @@ public final class EMCRegistry {
         clientSyncedPolicyOverrides = null;
         clientSyncedValueMode = null;
         rebuildStaticSources(configuredValueMode);
+        resetClientRecalculationGuard();
     }
 
     public static void setClientSyncedPolicyOverrides(Map<Item, EmcPolicyOverride> overrides) {
@@ -1010,6 +1015,26 @@ public final class EMCRegistry {
         }
     }
 
+    /** Marks the client recipe graph as changed without recalculating it immediately. */
+    public static synchronized void markClientRecipesDirty() {
+        clientRecipeRevision++;
+    }
+
+    /** Clears client-only deduplication state when disconnecting from a server. */
+    public static synchronized void resetClientRecalculationGuard() {
+        clientRecipeRevision++;
+        lastClientRecipeRevision = Integer.MIN_VALUE;
+        lastClientStateFingerprint = Integer.MIN_VALUE;
+        clientRecalculationInProgress = false;
+    }
+
+    private static int clientStateFingerprint() {
+        int result = getEffectiveValueMode().hashCode();
+        result = 31 * result + (clientSyncedOverrides == null ? 0 : clientSyncedOverrides.hashCode());
+        result = 31 * result + (clientSyncedPolicyOverrides == null ? 0 : clientSyncedPolicyOverrides.hashCode());
+        return result;
+    }
+
     public static void reloadAndRecalculate(RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
         loadItemPolicies();
         rebuildStaticSources(configuredValueMode);
@@ -1024,18 +1049,31 @@ public final class EMCRegistry {
         calculateRecipeEMCForMap(EMC_MAP, recipeManager, registries, true, CUSTOM_OVERRIDE_ITEMS);
     }
 
-    public static void clientReloadAndRecalculate(RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
-        rebuildStaticSources(getEffectiveValueMode());
-        DEFAULT_EMC_MAP.clear();
-        DEFAULT_EMC_MAP.putAll(STATIC_EMC_MAP);
-        calculateRecipeEMCForMap(DEFAULT_EMC_MAP, recipeManager, registries, false, Set.of());
+    public static synchronized void clientReloadAndRecalculate(RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
+        if (recipeManager == null || registries == null || clientRecalculationInProgress) return;
+        int stateFingerprint = clientStateFingerprint();
+        if (lastClientRecipeRevision == clientRecipeRevision
+            && lastClientStateFingerprint == stateFingerprint) return;
 
-        EMC_MAP.clear();
-        EMC_MAP.putAll(STATIC_EMC_MAP);
-        Set<Item> locked = new HashSet<>();
-        if (clientSyncedOverrides != null) loadOverridesInto(EMC_MAP, locked, clientSyncedOverrides);
-        else loadOverridesInto(EMC_MAP, locked, readCustomOverrides());
-        calculateRecipeEMCForMap(EMC_MAP, recipeManager, registries, false, locked);
+        clientRecalculationInProgress = true;
+        try {
+            rebuildStaticSources(getEffectiveValueMode());
+            DEFAULT_EMC_MAP.clear();
+            DEFAULT_EMC_MAP.putAll(STATIC_EMC_MAP);
+            calculateRecipeEMCForMap(DEFAULT_EMC_MAP, recipeManager, registries, false, Set.of());
+
+            EMC_MAP.clear();
+            EMC_MAP.putAll(STATIC_EMC_MAP);
+            Set<Item> locked = new HashSet<>();
+            if (clientSyncedOverrides != null) loadOverridesInto(EMC_MAP, locked, clientSyncedOverrides);
+            else loadOverridesInto(EMC_MAP, locked, readCustomOverrides());
+            calculateRecipeEMCForMap(EMC_MAP, recipeManager, registries, false, locked);
+
+            lastClientRecipeRevision = clientRecipeRevision;
+            lastClientStateFingerprint = stateFingerprint;
+        } finally {
+            clientRecalculationInProgress = false;
+        }
     }
 
     public static void applyCustomOverridesAndRecalculate(Map<Item, Long> overrides, RecipeManager recipeManager, net.minecraft.core.RegistryAccess registries) {
@@ -1251,6 +1289,10 @@ public final class EMCRegistry {
     }
 
     private static long calculateSmithingInput(SmithingRecipe recipe, Map<Item, Long> map) {
+        List<Ingredient> ingredients = recipe.getIngredients();
+        if (ingredients != null && !ingredients.isEmpty()) {
+            return calculateCheapestInput(ingredients, map);
+        }
         long template = Long.MAX_VALUE;
         long base = Long.MAX_VALUE;
         long addition = Long.MAX_VALUE;

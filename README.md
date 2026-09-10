@@ -4,7 +4,7 @@
 
 Velorise EMC combines personal EMC storage, equivalent exchange, World Tier progression, Resonant equipment, Core upgrades, Arcane Weapons, utility items, machines, world-generated EMC structures and a final endgame encounter into one connected system.
 
-This document is the player wiki for **Velorise EMC 2.0.0**. It describes the current gameplay implemented for:
+This document is the player wiki for **Velorise EMC 1.9.0-alpha.61**. It describes the current gameplay implemented for:
 
 - Forge 1.20.1
 - NeoForge 1.21.1
@@ -1695,7 +1695,7 @@ The mod supports broad damageable-item compatibility, but custom item classes ca
 - Dragonfire Scepter
 - Resonant Echo
 - Wither Scepter
-- Shulker Launcher (`shulker_seeker`)
+- Shulker Launcher
 - Guardian Lens
 - Evoker Fang Staff
 - Stormcaller

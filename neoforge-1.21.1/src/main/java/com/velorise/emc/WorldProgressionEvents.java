@@ -65,12 +65,11 @@ public final class WorldProgressionEvents {
             ResonantOreRetrogen.enqueueAroundPlayers(server, 2);
             BossArenaProgressionService.ensureUnlockedArenas(server, after.worldTier());
             if (before.worldTier() < LastEchoProfile.REQUIRED_WORLD_TIER && after.worldTier() >= LastEchoProfile.REQUIRED_WORLD_TIER) {
-                ServerLevel end = server.getLevel(Level.END);
                 BlockPos citadel = LastEchoCitadelService.ensureLocated(server);
-                if (end != null && citadel != null) {
-                    LastEchoCitadelData citadelData = LastEchoCitadelData.get(server);
-                    if (!citadelData.built()) LastEchoCitadelService.placeNow(end, citadel);
-                    broadcast(server, "§5The Citadel of the Last Echo has risen in the outer End.");
+                if (citadel != null) {
+                    // Construction is proximity-triggered and incrementally budgeted by
+                    // LastEchoCitadelService; never place the complete citadel inline here.
+                    broadcast(server, "§5The Citadel of the Last Echo now awaits in the outer End.");
                 }
             }
         }

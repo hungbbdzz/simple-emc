@@ -4,16 +4,26 @@ import com.velorise.emc.common.AuraNodeProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Deterministic Resonance Spire placement.
@@ -25,22 +35,69 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = VeloriseEMC.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class AuraNodeWorldGeneration {
     private static final ResourceLocation ANCIENT_CITY_ID = new ResourceLocation("minecraft", "ancient_city");
+    private static final int MAX_CHUNKS_PER_TICK = 2;
+    private static final int MAX_QUEUED_CHUNKS = 2048;
+    private static final long TICK_BUDGET_NANOS = 750_000L;
+    private static final Map<MinecraftServer, ConcurrentLinkedQueue<PendingChunk>> PENDING = new ConcurrentHashMap<>();
+    private static final Map<MinecraftServer, Set<String>> QUEUED = new ConcurrentHashMap<>();
 
     private AuraNodeWorldGeneration() {}
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
-        if (!AuraNodeProfile.enabled() || !(event.getLevel() instanceof ServerLevel level)) return;
-        ChunkPos chunk = event.getChunk().getPos();
-        // Chunk callbacks may run before FULL. Delay every read/write to the server thread.
-        level.getServer().execute(() -> placeForDimension(level, chunk));
+        if (!AuraNodeProfile.enabled()
+            || !(event.getLevel() instanceof ServerLevel level)
+            || !(event.getChunk() instanceof LevelChunk chunk)) return;
+
+        // Forge may fire ChunkEvent.Load while the chunk future is still being
+        // completed. Calling ServerLevel#getChunk from this callback can wait
+        // on the same future and freeze integrated-server spawn preparation.
+        // Only retain the already supplied LevelChunk position here; inspect it
+        // later from a normal server tick after initial region preparation.
+        enqueue(level, chunk.getPos());
     }
 
-    private static void placeForDimension(ServerLevel level, ChunkPos chunk) {
-        if (!level.hasChunk(chunk.x, chunk.z)) return;
+    @SubscribeEvent
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || !AuraNodeProfile.enabled()) return;
+        MinecraftServer server = event.getServer();
+        ConcurrentLinkedQueue<PendingChunk> queue = PENDING.get(server);
+        Set<String> queued = QUEUED.get(server);
+        if (queue == null || queued == null) return;
+
+        long deadline = System.nanoTime() + TICK_BUDGET_NANOS;
+        for (int processed = 0; processed < MAX_CHUNKS_PER_TICK && System.nanoTime() < deadline; processed++) {
+            PendingChunk pending = queue.poll();
+            if (pending == null) break;
+            queued.remove(pending.key());
+
+            ServerLevel level = server.getLevel(pending.dimension());
+            if (level == null) continue;
+            LevelChunk loaded = level.getChunkSource().getChunkNow(pending.chunk().x, pending.chunk().z);
+            if (loaded != null) placeForDimension(level, loaded);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        PENDING.remove(event.getServer());
+        QUEUED.remove(event.getServer());
+    }
+
+    private static void enqueue(ServerLevel level, ChunkPos chunk) {
+        MinecraftServer server = level.getServer();
+        String key = level.dimension().location() + ":" + chunk.toLong();
+        Set<String> queued = QUEUED.computeIfAbsent(server, ignored -> ConcurrentHashMap.newKeySet());
+        if (queued.size() >= MAX_QUEUED_CHUNKS || !queued.add(key)) return;
+        PENDING.computeIfAbsent(server, ignored -> new ConcurrentLinkedQueue<>())
+            .add(new PendingChunk(level.dimension(), chunk, key));
+    }
+
+    private static void placeForDimension(ServerLevel level, LevelChunk loadedChunk) {
+        ChunkPos chunk = loadedChunk.getPos();
         if (Level.OVERWORLD.equals(level.dimension())) {
             tryPlaceRegionalTower(level, chunk, 1);
-            tryPlaceAncientCityTower(level, chunk);
+            tryPlaceAncientCityTower(level, loadedChunk);
         } else if (Level.NETHER.equals(level.dimension())) {
             tryPlaceRegionalTower(level, chunk, 2);
         } else if (Level.END.equals(level.dimension())) {
@@ -73,13 +130,13 @@ public final class AuraNodeWorldGeneration {
         AuraNodeTowerStructure.place(level, foundation, tier, true);
     }
 
-    private static void tryPlaceAncientCityTower(ServerLevel level, ChunkPos loadedChunk) {
-        var chunk = level.getChunk(loadedChunk.x, loadedChunk.z);
-        for (var entry : chunk.getAllStarts().entrySet()) {
+    private static void tryPlaceAncientCityTower(ServerLevel level, LevelChunk loadedChunk) {
+        ChunkPos loadedPos = loadedChunk.getPos();
+        for (var entry : loadedChunk.getAllStarts().entrySet()) {
             ResourceLocation id = level.registryAccess().registryOrThrow(Registries.STRUCTURE).getKey(entry.getKey());
             StructureStart start = entry.getValue();
             if (!ANCIENT_CITY_ID.equals(id) || start == null || !start.isValid()) continue;
-            if (!start.getChunkPos().equals(loadedChunk)) continue;
+            if (!start.getChunkPos().equals(loadedPos)) continue;
             if (!selectedAncientCity(level, start)) return;
 
             BlockPos foundation = findAncientCitySurfaceFoundation(level, start);
@@ -226,4 +283,6 @@ public final class AuraNodeWorldGeneration {
         value ^= value >>> 27; value *= 0x94D049BB133111EBL;
         return value ^ (value >>> 31);
     }
+
+    private record PendingChunk(ResourceKey<Level> dimension, ChunkPos chunk, String key) {}
 }

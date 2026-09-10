@@ -193,8 +193,6 @@ public final class VanillaReworkEvents {
             : 0.0F;
     }
 
-    @SubscribeEvent
-
     private static void clearStaleAnvilState(ServerPlayer player) {
         if (!(player.containerMenu instanceof AlchemicalAnvilMenu)) {
             player.getPersistentData().remove(VanillaMachineRegistry.ANVIL_FLAG);

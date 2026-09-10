@@ -15,11 +15,14 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class ClientPayloadHandler {
     private record JukeboxSoundKey(ResourceLocation dimension, long blockPos) {}
 
     private static final Map<JukeboxSoundKey, MutableJukeboxSoundInstance> JUKEBOX_SOUNDS = new HashMap<>();
+    private static int lastEmcSyncFingerprint = Integer.MIN_VALUE;
+    private static boolean pendingEmcRecalculation;
     public static void handle(final SyncPlayerEMCPayload payload, final IPayloadContext context) {
         context.enqueueWork(() -> {
             ClientWorldProgress.install(payload.worldProgressCounts(), payload.worldProgressContributors());
@@ -37,32 +40,44 @@ public class ClientPayloadHandler {
 
     public static void handleCustomEMCSync(final SyncCustomEMCPayload payload, final IPayloadContext context) {
         context.enqueueWork(() -> {
+            int fingerprint = Objects.hash(payload.valueMode(), payload.overrides(), payload.policyOverrides());
+            if (fingerprint == lastEmcSyncFingerprint) return;
+
             com.velorise.emc.EMCRegistry.setClientSyncedValueMode(payload.valueMode());
             java.util.Map<net.minecraft.world.item.Item, Long> clientOverrides = new java.util.HashMap<>();
             payload.overrides().forEach((rl, val) -> {
                 net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(rl);
-                if (item != null && item != net.minecraft.world.item.Items.AIR) {
-                    clientOverrides.put(item, val);
-                }
+                if (item != null && item != net.minecraft.world.item.Items.AIR) clientOverrides.put(item, val);
             });
             com.velorise.emc.EMCRegistry.setClientSyncedOverrides(clientOverrides);
             java.util.Map<net.minecraft.world.item.Item, EmcPolicyOverride> clientPolicies = new java.util.HashMap<>();
             payload.policyOverrides().forEach((rl, policy) -> {
                 net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(rl);
-                if (item != null && item != net.minecraft.world.item.Items.AIR && policy != null) {
-                    clientPolicies.put(item, policy);
-                }
+                if (item != null && item != net.minecraft.world.item.Items.AIR && policy != null) clientPolicies.put(item, policy);
             });
             com.velorise.emc.EMCRegistry.setClientSyncedPolicyOverrides(clientPolicies);
 
-            net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
-            if (level != null) {
-                com.velorise.emc.EMCRegistry.clientReloadAndRecalculate(
-                    level.getRecipeManager(),
-                    level.registryAccess()
-                );
-            }
+            lastEmcSyncFingerprint = fingerprint;
+            pendingEmcRecalculation = true;
+            flushPendingEmcRecalculation();
         });
+    }
+
+    public static void flushPendingEmcRecalculation() {
+        if (!pendingEmcRecalculation) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientLevel level = minecraft.level;
+        if (level == null || minecraft.getConnection() == null) return;
+        pendingEmcRecalculation = false;
+        com.velorise.emc.EMCRegistry.clientReloadAndRecalculate(
+            minecraft.getConnection().getRecipeManager(), level.registryAccess());
+    }
+
+    public static void clearServerSyncState() {
+        clearJukeboxAudio();
+        lastEmcSyncFingerprint = Integer.MIN_VALUE;
+        pendingEmcRecalculation = false;
+        com.velorise.emc.EMCRegistry.resetClientRecalculationGuard();
     }
 
     public static void handleOpenConfigScreen(final OpenConfigScreenPayload payload, final IPayloadContext context) {

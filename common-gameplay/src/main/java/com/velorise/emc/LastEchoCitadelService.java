@@ -20,6 +20,8 @@ import net.minecraft.world.phys.AABB;
 public final class LastEchoCitadelService {
     private static final int GRID_RADIUS = 64;
     private static final int GRID_WIDTH = GRID_RADIUS * 2 + 1;
+    private static final int MAX_BUILD_COLUMNS_PER_TICK = 32;
+    private static final long BUILD_BUDGET_NANOS = 1_250_000L;
 
     private LastEchoCitadelService() {}
 
@@ -59,7 +61,6 @@ public final class LastEchoCitadelService {
     }
 
     public static void tick(MinecraftServer server) {
-        if ((server.getTickCount() & 3) != 0) return;
         BlockPos center = ensureLocated(server);
         if (center == null) return;
         ServerLevel end = server.getLevel(Level.END);
@@ -79,6 +80,8 @@ public final class LastEchoCitadelService {
             buildBatch(end, data, center);
             return;
         }
+        // Once built, routine boss/fountain checks do not need to run every tick.
+        if ((server.getTickCount() & 3) != 0) return;
         ensureRespawnFountain(end, center);
         if (data.defeated()) {
             return;
@@ -107,16 +110,19 @@ public final class LastEchoCitadelService {
     private static void buildBatch(ServerLevel level, LastEchoCitadelData data, BlockPos center) {
         int cursor = data.buildCursor();
         int total = GRID_WIDTH * GRID_WIDTH;
-        int stop = Math.min(total, cursor + LastEchoProfile.COLUMNS_PER_TICK);
-        for (int index = cursor; index < stop; index++) {
+        int hardStop = Math.min(total, cursor + Math.min(MAX_BUILD_COLUMNS_PER_TICK, LastEchoProfile.COLUMNS_PER_TICK));
+        long deadline = System.nanoTime() + BUILD_BUDGET_NANOS;
+        int index = cursor;
+        while (index < hardStop && System.nanoTime() < deadline) {
             int dx = index % GRID_WIDTH - GRID_RADIUS;
             int dz = index / GRID_WIDTH - GRID_RADIUS;
             buildColumn(level, center, dx, dz);
+            index++;
         }
-        if (stop >= total) {
+        if (index >= total) {
             buildRespawnFountain(level, center);
             data.markBuilt();
-        } else data.setBuildCursor(stop);
+        } else data.setBuildCursor(index);
     }
 
     private static void buildColumn(ServerLevel level, BlockPos center, int dx, int dz) {
