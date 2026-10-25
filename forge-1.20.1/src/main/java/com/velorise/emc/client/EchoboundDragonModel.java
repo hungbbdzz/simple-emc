@@ -64,65 +64,72 @@ public final class EchoboundDragonModel extends HierarchicalModel<EchoboundDrago
                           float ageInTicks, float netHeadYaw, float headPitch) {
         resetAnimatedOffsets();
 
-        float flap = ageInTicks * 0.28F;
-        float slowWave = ageInTicks * 0.105F;
         boolean slamming = entity.isClientSlamming();
+        boolean roaring = entity.isClientRoaring();
+        boolean cycloning = entity.isClientCycloning();
+        boolean beamCharging = entity.isClientBeamCharging();
         boolean diving = entity.getDeltaMovement().y < -0.08D
             && entity.getDeltaMovement().horizontalDistanceSqr() > 0.08D;
+
+        float flapRate = cycloning ? 0.44F : (diving ? 0.34F : 0.28F);
+        float flap = ageInTicks * flapRate;
+        float slowWave = ageInTicks * 0.115F;
+        float turnFactor = entity.clientTurnFactor();
 
         if (entity.isDeadOrDying()) {
             animateDeath(entity, flap, slowWave);
             return;
         }
 
-        // Body breathing and hurt recoil make the torso participate instead of leaving the
-        // wings as the only visibly animated parts.
-        body.y = 4.0F + Mth.sin(flap * 0.52F) * 0.65F;
-        body.xRot = diving ? -0.10F : Mth.sin(slowWave) * 0.025F;
-        root.zRot = entity.hurtTime > 0 ? Mth.sin(entity.hurtTime * 1.65F) * 0.055F : 0.0F;
+        // Body breathing, wing-stroke recoil, and hurt roll
+        body.y = 4.0F + Mth.sin(flap) * (cycloning ? 1.15F : 0.72F);
+        body.xRot = diving ? -0.14F : Mth.sin(slowWave) * 0.032F;
+        root.zRot = entity.hurtTime > 0
+            ? Mth.sin(entity.hurtTime * 1.65F) * 0.065F
+            : turnFactor * 0.14F;
 
-        float headSway = Mth.sin(slowWave * 1.35F) * 0.15F;
-        float headBob = Mth.sin(flap * 0.47F) * 0.07F;
-        head.yRot = netHeadYaw * Mth.DEG_TO_RAD * 0.45F + headSway;
-        head.xRot = headPitch * Mth.DEG_TO_RAD * 0.35F + headBob + (diving ? -0.15F : 0.0F);
-        head.zRot = Mth.sin(slowWave * 0.83F) * 0.035F;
-        head.x = Mth.sin(slowWave * 1.35F) * 1.15F;
-        head.y = 5.0F + Mth.cos(flap * 0.47F) * 0.45F;
-        jaw.xRot = slamming ? 0.72F
-            : diving ? 0.58F : 0.10F + (Mth.sin(flap * 0.55F) + 1.0F) * 0.11F;
+        float headSway = Mth.sin(slowWave * 1.35F) * 0.14F + turnFactor * 0.22F;
+        float headBob = Mth.sin(flap - 0.6F) * 0.085F;
+        head.yRot = netHeadYaw * Mth.DEG_TO_RAD * 0.52F + headSway;
+        head.xRot = headPitch * Mth.DEG_TO_RAD * 0.40F + headBob + (diving ? -0.16F : (roaring ? -0.12F : 0.0F));
+        head.zRot = Mth.sin(slowWave * 0.83F) * 0.035F - turnFactor * 0.10F;
+        head.x = Mth.sin(slowWave * 1.35F) * 1.15F + turnFactor * 2.4F;
+        head.y = 5.0F + Mth.cos(flap * 0.5F) * 0.48F;
+        jaw.xRot = (slamming || roaring || beamCharging)
+            ? 0.68F + Mth.sin(ageInTicks * 0.65F) * 0.08F
+            : diving ? 0.56F : 0.10F + (Mth.sin(flap * 0.55F) + 1.0F) * 0.12F;
 
-        float wingPower = slamming ? 0.35F : 1.0F;
-        leftWing.xRot = 0.12F - Mth.cos(flap) * 0.20F * wingPower;
-        leftWing.yRot = -0.22F + (diving ? 0.10F : 0.0F);
-        leftWing.zRot = -0.22F - Mth.sin(flap) * 0.76F * wingPower;
-        leftWingTip.zRot = 0.35F + Mth.sin(flap + 1.8F) * 0.46F * wingPower;
+        float wingPower = slamming ? 0.35F : (cycloning ? 1.28F : 1.0F);
+        leftWing.xRot = 0.12F - Mth.cos(flap) * 0.22F * wingPower;
+        leftWing.yRot = -0.22F + (diving ? 0.12F : 0.0F);
+        leftWing.zRot = -0.22F - Mth.sin(flap) * 0.78F * wingPower;
+        leftWingTip.zRot = 0.35F + Mth.sin(flap + 1.85F) * 0.52F * wingPower;
         rightWing.xRot = leftWing.xRot;
         rightWing.yRot = -leftWing.yRot;
         rightWing.zRot = -leftWing.zRot;
         rightWingTip.zRot = -leftWingTip.zRot;
 
-        // Neck pieces are siblings in this custom model, so position offsets are required
-        // in addition to rotation to form a visible, connected serpentine motion.
+        // Connected serpentine neck chain with turn-lead and vertical wave propagation
         for (int i = 0; i < neck.length; i++) {
-            float phase = slowWave * 1.55F - i * 0.50F;
+            float phase = slowWave * 1.55F - i * 0.48F;
             float follow = (i + 1.0F) / neck.length;
-            neck[i].x = Mth.sin(phase) * (0.45F + follow * 1.35F);
-            neck[i].y = 9.0F - i + Mth.cos(phase * 0.82F) * 0.32F;
-            neck[i].yRot = head.yRot * follow + Mth.sin(phase) * 0.055F;
-            neck[i].xRot = Mth.sin(flap * 0.42F - i * 0.48F) * 0.10F;
-            neck[i].zRot = Mth.sin(phase * 0.72F) * 0.025F;
+            neck[i].x = Mth.sin(phase) * (0.45F + follow * 1.35F) + turnFactor * follow * 2.1F;
+            neck[i].y = 9.0F - i + Mth.cos(phase * 0.82F) * 0.34F + Mth.sin(flap - i * 0.32F) * 0.22F;
+            neck[i].yRot = head.yRot * follow + Mth.sin(phase) * 0.06F;
+            neck[i].xRot = Mth.sin(flap * 0.45F - i * 0.45F) * 0.11F + head.xRot * follow * 0.35F;
+            neck[i].zRot = Mth.sin(phase * 0.72F) * 0.025F - turnFactor * follow * 0.08F;
         }
 
-        // Tail segments sweep progressively farther from the body, producing an actual wave
-        // instead of several cubes rotating almost invisibly around their own centres.
+        // Dynamic tail whip that trails behind turns and undulates with flight speed
         for (int i = 0; i < tail.length; i++) {
-            float phase = slowWave * 1.85F - i * 0.58F;
-            float reach = 0.55F + i * 0.48F;
-            tail[i].x = Mth.sin(phase) * reach;
-            tail[i].y = 13.0F + i * 0.45F + Mth.cos(phase * 0.70F) * (0.22F + i * 0.035F);
-            tail[i].yRot = Mth.sin(phase) * (0.13F + i * 0.026F);
-            tail[i].xRot = Mth.cos(phase * 0.78F) * (0.035F + i * 0.006F);
-            tail[i].zRot = Mth.sin(phase * 0.55F) * 0.018F;
+            float phase = slowWave * 1.85F - i * 0.55F;
+            float reach = 0.55F + i * 0.50F;
+            float trailTurn = -turnFactor * (i + 1) * 0.85F;
+            tail[i].x = Mth.sin(phase) * reach + trailTurn;
+            tail[i].y = 13.0F + i * 0.45F + Mth.cos(phase * 0.72F) * (0.24F + i * 0.04F);
+            tail[i].yRot = Mth.sin(phase) * (0.14F + i * 0.028F) - turnFactor * (0.04F + i * 0.018F);
+            tail[i].xRot = Mth.cos(phase * 0.78F) * (0.04F + i * 0.007F) + (diving ? 0.08F : 0.0F);
+            tail[i].zRot = Mth.sin(phase * 0.55F) * 0.02F;
         }
 
         animateLegs(entity, limbSwing, limbSwingAmount, flap, diving, slamming);
@@ -216,13 +223,11 @@ public final class EchoboundDragonModel extends HierarchicalModel<EchoboundDrago
             if (entity.onGround()) {
                 float stride = Mth.cos(limbSwing * 0.6662F + phase) * limbSwingAmount;
                 float lift = Math.max(0.0F, Mth.sin(limbSwing * 0.6662F + phase)) * limbSwingAmount;
-                // A small idle pulse remains visible even when navigation momentarily reports zero limb swing.
                 float idle = Mth.sin(flap * 0.42F + phase) * 0.055F;
                 legs[i].xRot = stride * 0.95F + idle;
                 shins[i].xRot = 0.30F + lift * 0.85F - stride * 0.20F - idle * 0.5F;
                 claws[i].xRot = -0.18F - lift * 0.35F + idle * 0.35F;
             } else if (slamming) {
-                // Brace all four limbs toward the impact instead of leaving the flight pose frozen.
                 boolean front = i < 2;
                 float brace = Mth.sin(flap * 0.55F + phase) * 0.08F;
                 legs[i].xRot = (front ? 0.48F : 0.72F) + brace;

@@ -102,13 +102,14 @@ public final class BossArenaProgressionService {
                 new BlockPos(offset[0], 70, offset[1]));
             case AETHERIC -> {
                 BlockPos landmark = locate(level, "end_city", new BlockPos(offset[0], 80, offset[1]), 256);
-                yield landmark == null ? null : landmark.offset(48, 0, 0);
+                yield landmark == null ? null : new BlockPos(landmark.getX() + 48, Math.max(58, landmark.getY()), landmark.getZ());
             }
             case DEEPBOUND -> {
                 BlockPos spawn = level.getSharedSpawnPos();
                 BlockPos origin = spawn.offset(offset[0], 0, offset[1]);
                 BlockPos landmark = locate(level, "ancient_city", origin, 256);
-                yield landmark == null ? null : landmark.offset(48, 2, 0);
+                // Ancient City structure start Y is -51 in deep dark; clamp Y to valid deep dark height
+                yield landmark == null ? null : new BlockPos(landmark.getX() + 48, -49, landmark.getZ());
             }
         };
     }
@@ -175,8 +176,10 @@ public final class BossArenaProgressionService {
 
     private static boolean playerNear(ServerLevel level, BlockPos center) {
         for (ServerPlayer player : level.players()) {
-            if (!player.isSpectator() && player.distanceToSqr(
-                center.getX() + 0.5D, center.getY() + 0.5D, center.getZ() + 0.5D) <= BUILD_TRIGGER_RADIUS_SQUARED) {
+            if (player.isSpectator()) continue;
+            double dx = player.getX() - (center.getX() + 0.5D);
+            double dz = player.getZ() - (center.getZ() + 0.5D);
+            if (dx * dx + dz * dz <= BUILD_TRIGGER_RADIUS_SQUARED) {
                 return true;
             }
         }

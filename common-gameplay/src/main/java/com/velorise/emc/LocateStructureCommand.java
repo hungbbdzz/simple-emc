@@ -37,22 +37,35 @@ public final class LocateStructureCommand {
     public static int locateInfernalCrucible(CommandSourceStack source) {
         ServerLevel level = source.getServer().getLevel(Level.NETHER);
         if (level == null) return unavailable(source, "The Nether");
-        BlockPos center = InfernalCrucibleArenaService.locateArena(level, new BlockPos(0, 70, 0));
+        BlockPos origin = BlockPos.containing(source.getPosition());
+        BlockPos center = BossArenaRegistryData.get(source.getServer())
+            .nearest(BossArenaRegistryData.Kind.INFERNAL, origin);
+        if (center == null) center = InfernalCrucibleArenaService.locateArena(level, new BlockPos(0, 70, 0));
         return report(source, "infernal_crucible", level, center);
     }
 
     public static int locateAethericBulwark(CommandSourceStack source) {
         ServerLevel level = source.getServer().getLevel(Level.END);
         if (level == null) return unavailable(source, "The End");
-        BlockPos landmark = locateVanilla(level, "end_city", new BlockPos(1024, 80, 1024), 256);
-        BlockPos center = landmark == null ? null : landmark.offset(48, 0, 0);
+        BlockPos origin = BlockPos.containing(source.getPosition());
+        BlockPos center = BossArenaRegistryData.get(source.getServer())
+            .nearest(BossArenaRegistryData.Kind.AETHERIC, origin);
+        if (center == null) {
+            BlockPos landmark = locateVanilla(level, "end_city", new BlockPos(1024, 80, 1024), 256);
+            center = landmark == null ? null : new BlockPos(landmark.getX() + 48, Math.max(58, landmark.getY()), landmark.getZ());
+        }
         return report(source, "aetheric_bulwark", level, center);
     }
 
     public static int locateDeepboundWarden(CommandSourceStack source) {
         ServerLevel level = source.getServer().overworld();
-        BlockPos landmark = locateVanilla(level, "ancient_city", level.getSharedSpawnPos(), 256);
-        BlockPos center = landmark == null ? null : landmark.offset(48, 2, 0);
+        BlockPos origin = BlockPos.containing(source.getPosition());
+        BlockPos center = BossArenaRegistryData.get(source.getServer())
+            .nearest(BossArenaRegistryData.Kind.DEEPBOUND, origin);
+        if (center == null) {
+            BlockPos landmark = locateVanilla(level, "ancient_city", level.getSharedSpawnPos(), 256);
+            center = landmark == null ? null : new BlockPos(landmark.getX() + 48, -49, landmark.getZ());
+        }
         return report(source, "deepbound_warden", level, center);
     }
 

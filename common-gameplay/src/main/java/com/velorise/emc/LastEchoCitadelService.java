@@ -88,8 +88,12 @@ public final class LastEchoCitadelService {
             return;
         }
         ensureRespawnFountain(end, center);
+        // Only reconcile bossActive when the citadel chunk is actually loaded in memory!
+        // Otherwise, if a player dies and respawns in the Overworld (unloading the outer End),
+        // getEntitiesOfClass returns empty and would falsely clear bossActive.
+        if (!end.hasChunkAt(center)) return;
         AABB arenaBox = new AABB(center).inflate(LastEchoProfile.ACTIVATION_RADIUS, 72.0D, LastEchoProfile.ACTIVATION_RADIUS);
-        boolean bossPresent = !end.getEntitiesOfClass(EchoboundDragonEntity.class, arenaBox).isEmpty();
+        boolean bossPresent = !end.getEntitiesOfClass(EchoboundDragonEntity.class, arenaBox, e -> e.isAlive()).isEmpty();
         if (data.bossActive() && !bossPresent && server.getTickCount() % 200 == 0) data.setBossActive(false);
         if (!data.bossActive() && bossPresent) data.setBossActive(true);
     }
@@ -548,18 +552,21 @@ public final class LastEchoCitadelService {
 
     public static boolean summonExisting(ServerLevel level, BlockPos center) {
         LastEchoCitadelData data = LastEchoCitadelData.get(level.getServer());
-        if (!level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(center).inflate(64.0D, 48.0D, 64.0D), e -> e.isAlive()).isEmpty()) return false;
+        if (!level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(center).inflate(96.0D, 64.0D, 96.0D), e -> e.isAlive()).isEmpty()) return false;
         spawnBoss(level, data, center);
         return true;
     }
 
     public static EchoboundDragonEntity summonAt(ServerLevel level, BlockPos center) {
         LastEchoCitadelData data = LastEchoCitadelData.get(level.getServer());
-        data.resetAt(center);
-        buildRespawnFountain(level, center);
+        BlockPos resolved = data.built() && data.center() != null && data.center().distSqr(center) <= 72.0D * 72.0D
+            ? data.center()
+            : PromotionBossArenaService.snapPlacementFloor(level, center);
+        data.resetAt(resolved);
+        buildRespawnFountain(level, resolved);
         data.markBuilt();
-        summonExisting(level, center);
-        return level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(center).inflate(64.0D, 48.0D, 64.0D), e -> e.isAlive())
+        summonExisting(level, resolved);
+        return level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(resolved).inflate(96.0D, 64.0D, 96.0D), e -> e.isAlive())
             .stream().findFirst().orElse(null);
     }
 

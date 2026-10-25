@@ -25,12 +25,16 @@ public final class ArenaSummonService {
     private ArenaSummonService() {}
 
     public static boolean isPending(ResourceKey<Level> dimension, BlockPos center, BossKind kind) {
-        return PENDING.stream().anyMatch(p -> p.dimension.equals(dimension) && p.center.equals(center) && p.kind == kind);
+        return PENDING.stream().anyMatch(p -> p.dimension.equals(dimension)
+            && p.kind == kind
+            && p.center.distSqr(center) <= 36.0D * 36.0D);
     }
 
     public static boolean isBossPresent(ServerLevel level, BlockPos center, BossKind kind) {
         if (isPending(level.dimension(), center, kind)) return true;
-        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(center).inflate(64.0D);
+        // Inflate to 96 blocks to match the actual summonBoss / summonBulwarkBoss / summonDeepboundBoss checks,
+        // preventing Eye items from being consumed when a living boss is slightly further out.
+        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(center).inflate(96.0D);
         return switch (kind) {
             case INFERNAL_CRUCIBLE -> !level.getEntitiesOfClass(InfernalCrucibleEntity.class, box, e -> e.isAlive()).isEmpty();
             case AETHERIC_BULWARK -> !level.getEntitiesOfClass(AethericBulwarkEntity.class, box, e -> e.isAlive()).isEmpty();
@@ -68,6 +72,15 @@ public final class ArenaSummonService {
                 it.remove();
                 continue;
             }
+            // Wait if chunk is temporarily unloaded (e.g., player died during ritual and is respawning)
+            if (!level.hasChunkAt(pending.center)) {
+                if (++pending.unloadedTicks > 20 * 60) {
+                    it.remove();
+                }
+                continue;
+            }
+            pending.unloadedTicks = 0;
+
             tickParticles(level, pending);
             pending.ticksRemaining--;
             if (pending.ticksRemaining > 0) continue;
@@ -189,6 +202,7 @@ public final class ArenaSummonService {
         private final BlockPos center;
         private final BossKind kind;
         private int ticksRemaining;
+        private int unloadedTicks;
 
         private Pending(MinecraftServer server, ResourceKey<Level> dimension, BlockPos center, BossKind kind, int ticksRemaining) {
             this.serverRef = new WeakReference<>(server);

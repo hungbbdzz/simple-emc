@@ -1,6 +1,7 @@
 package com.velorise.emc;
 
-import net.minecraft.commands.arguments.EntityAnchorArgument;
+import com.velorise.emc.common.GameplayConfig;
+import com.velorise.emc.common.ThreatScalingProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -42,6 +43,8 @@ public final class AethericBulwarkEntity extends Shulker {
     /** Vanilla clamps MAX_HEALTH to 1024, so damage is resolved against a 1000-HP physical segment. */
     private static final float PHYSICAL_HEALTH_SEGMENT = 1_000.0F;
     private static final int MAX_ACTIVE_MINIONS = 4;
+    private static final byte EVENT_CAST_PULSE = 60;
+    private static final byte EVENT_SHELL_SLAM = 61;
 
     private final ServerBossEvent bossBar = new ServerBossEvent(
         Component.translatable("entity.velorise_emc.aetheric_bulwark"),
@@ -50,6 +53,8 @@ public final class AethericBulwarkEntity extends Shulker {
     );
     private BlockPos arena = BlockPos.ZERO;
     private boolean initializedHealth;
+    private boolean hadCombatEngagement;
+    private int inactiveTicks;
     private float encounterHealth = BASE_ENCOUNTER_HEALTH;
     private float encounterMaxHealth = BASE_ENCOUNTER_HEALTH;
     private int skillClock;
@@ -57,8 +62,16 @@ public final class AethericBulwarkEntity extends Shulker {
     private int lastPhase = 1;
     private int lastSkill = -1;
     private int shellGuardCooldown;
+    private int shellGuardActiveTicks;
+    private int castOpenTicks;
+    private int idlePeekTimer = 50;
+    private int idlePeekDuration;
+    private int lookAroundTimer;
+    private float idleLookYaw;
     private UUID retaliationTargetId;
     private int wanderTeleportCooldown = 120;
+    private int clientPulseTicks;
+    private int clientSlamTicks;
     private final List<PendingStrike> pendingStrikes = new ArrayList<>();
 
     public AethericBulwarkEntity(EntityType<? extends Shulker> type, Level level) {
@@ -71,6 +84,18 @@ public final class AethericBulwarkEntity extends Shulker {
 
     public void bindArena(BlockPos center) {
         arena = center.immutable();
+    }
+
+    public int clientPulseTicks() {
+        return clientPulseTicks;
+    }
+
+    public int clientSlamTicks() {
+        return clientSlamTicks;
+    }
+
+    public void setRawPeekAmount(int peek) {
+        this.entityData.set(DATA_PEEK_ID, (byte) peek);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -91,28 +116,49 @@ public final class AethericBulwarkEntity extends Shulker {
     @Override
     protected boolean teleportSomewhere() {
         // Prevent Vanilla Shulker from randomly teleporting onto high outer obelisk roofs or outside the arena.
-        if (level().isClientSide || arena.equals(BlockPos.ZERO)) return false;
         return false;
+    }
+
+    @Override
+    public void handleEntityEvent(byte id) {
+        if (id == EVENT_CAST_PULSE) {
+            clientPulseTicks = 20;
+        } else if (id == EVENT_SHELL_SLAM) {
+            clientSlamTicks = 18;
+        } else {
+            super.handleEntityEvent(id);
+        }
     }
 
     @Override
     public void tick() {
         super.tick();
-        if (level().isClientSide) return;
+        if (level().isClientSide) {
+            if (clientPulseTicks > 0) clientPulseTicks--;
+            if (clientSlamTicks > 0) clientSlamTicks--;
+            return;
+        }
         if (!(level() instanceof ServerLevel level)) return;
 
-        ensureHealthInitialized();
+        ensureHealthInitialized(level);
         float healthRatio = encounterMaxHealth <= 0.0F ? 0.0F : Mth.clamp(encounterHealth / encounterMaxHealth, 0.0F, 1.0F);
         bossBar.setProgress(healthRatio);
         enforceArena(level);
 
         if (shellGuardCooldown > 0) shellGuardCooldown--;
+        if (shellGuardActiveTicks > 0) shellGuardActiveTicks--;
+        if (castOpenTicks > 0) castOpenTicks--;
         tickPendingStrikes(level);
 
         phase = healthRatio > 0.70F ? 1 : healthRatio > 0.35F ? 2 : 3;
-        if (phase > lastPhase) {
+        if (phase < lastPhase) {
             lastPhase = phase;
-            level.playSound(null, blockPosition(), SoundEvents.SHULKER_CLOSE, SoundSource.HOSTILE, 3.5F, 0.55F);
+        } else if (phase > lastPhase) {
+            lastPhase = phase;
+            setRawPeekAmount(100);
+            castOpenTicks = 35;
+            level.broadcastEntityEvent(this, EVENT_CAST_PULSE);
+            level.playSound(null, blockPosition(), SoundEvents.SHULKER_OPEN, SoundSource.HOSTILE, 3.5F, 0.55F);
             level.playSound(null, blockPosition(), SoundEvents.ANVIL_BREAK, SoundSource.HOSTILE, 2.2F, 0.65F);
             level.playSound(null, blockPosition(), SoundEvents.BEACON_DEACTIVATE, SoundSource.HOSTILE, 3.0F, 0.75F);
             level.sendParticles(ParticleTypes.REVERSE_PORTAL, getX(), getY() + 1.0D, getZ(), 80, 1.5D, 1.5D, 1.5D, 0.08D);
@@ -121,14 +167,32 @@ public final class AethericBulwarkEntity extends Shulker {
         LivingEntity target = findCombatTarget(level);
         if (target == null) {
             setTarget(null);
+            inactiveTicks++;
+            pendingStrikes.clear();
+            if (hadCombatEngagement && inactiveTicks >= 200 && encounterHealth < encounterMaxHealth) {
+                encounterHealth = Math.min(encounterMaxHealth, encounterHealth + encounterMaxHealth * 0.025F);
+                if (encounterHealth >= encounterMaxHealth) {
+                    hadCombatEngagement = false;
+                    phase = 1;
+                    lastPhase = 1;
+                }
+            }
             wanderIdle(level);
             return;
         }
-        setTarget(target);
-        getLookControl().setLookAt(target, 180.0F, 180.0F);
-        lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
 
-        if (++skillClock < (phase == 1 ? 76 : phase == 2 ? 56 : 40)) return;
+        hadCombatEngagement = true;
+        inactiveTicks = 0;
+        setTarget(target);
+        smoothFaceTarget(target);
+
+        int cooldown = phase == 1 ? 76 : phase == 2 ? 56 : 40;
+        skillClock++;
+
+        // Drive authentic Vanilla Shulker shell peek animations (DATA_PEEK_ID: 0 = closed, 30 = peeking, 100 = wide open)
+        updateCombatPeekAnimation(cooldown);
+
+        if (skillClock < cooldown) return;
         skillClock = 0;
 
         int poolSize = phase == 1 ? 4 : phase == 2 ? 6 : 7;
@@ -141,29 +205,82 @@ public final class AethericBulwarkEntity extends Shulker {
         }
         lastSkill = choice;
 
+        if (choice == 5) {
+            ironShellGuard(level, target);
+            return;
+        }
+
+        setRawPeekAmount(100);
+        castOpenTicks = 24;
+        level.broadcastEntityEvent(this, EVENT_CAST_PULSE);
+
         if (choice == 0) orbitalBarrage(level, target);
         else if (choice == 1) gravityInversion(level, target);
         else if (choice == 2) spatialSwap(level, target);
         else if (choice == 3) fakeShadowDecoy(level, target);
         else if (choice == 4) gravitySingularity(level, target);
-        else if (choice == 5) ironShellGuard(level, target);
         else chargedBurst(level, target);
+    }
+
+    private void updateCombatPeekAnimation(int cooldown) {
+        if (shellGuardActiveTicks > 0) {
+            setRawPeekAmount(0);
+        } else if (castOpenTicks > 0 || skillClock >= cooldown - 18) {
+            setRawPeekAmount(100);
+        } else {
+            // Curious combat peek between casts so the inner Shulker head tracks the player
+            setRawPeekAmount(phase >= 3 ? 55 : 35);
+        }
+    }
+
+    private void smoothFaceTarget(LivingEntity target) {
+        Vec3 eye = target.getEyePosition();
+        getLookControl().setLookAt(eye.x, eye.y, eye.z, 35.0F, 35.0F);
+        double dx = eye.x - getX();
+        double dz = eye.z - getZ();
+        if (dx * dx + dz * dz > 1.0E-4D) {
+            float desiredYaw = (float) (Mth.atan2(dz, dx) * (180.0D / Math.PI)) - 90.0F;
+            setYRot(Mth.rotLerp(0.28F, getYRot(), desiredYaw));
+            yBodyRot = getYRot();
+            yHeadRot = Mth.rotLerp(0.35F, yHeadRot, desiredYaw);
+        }
     }
 
     private void wanderIdle(ServerLevel level) {
         if (arena.equals(BlockPos.ZERO)) return;
 
-        if (tickCount % 60 == 0) {
+        // Expressive Vanilla Shulker idle peeking and looking around
+        if (idlePeekDuration > 0) {
+            idlePeekDuration--;
+            if (idlePeekDuration == 0) {
+                setRawPeekAmount(0);
+                level.playSound(null, blockPosition(), SoundEvents.SHULKER_CLOSE, SoundSource.HOSTILE, 1.0F, 0.9F);
+            }
+        } else if (--idlePeekTimer <= 0) {
+            idlePeekTimer = 70 + random.nextInt(80);
+            idlePeekDuration = 35 + random.nextInt(30);
+            setRawPeekAmount(30);
+            level.playSound(null, blockPosition(), SoundEvents.SHULKER_OPEN, SoundSource.HOSTILE, 1.1F, 0.85F);
+        }
+
+        if (--lookAroundTimer <= 0) {
+            lookAroundTimer = 30 + random.nextInt(40);
+            idleLookYaw = random.nextFloat() * 360.0F;
+        }
+        yHeadRot = Mth.rotLerp(0.18F, yHeadRot, idleLookYaw);
+
+        if (tickCount % 70 == 0) {
             level.playSound(null, blockPosition(), SoundEvents.SHULKER_AMBIENT, SoundSource.HOSTILE, 1.2F, 0.8F);
         }
 
         if (--wanderTeleportCooldown <= 0) {
-            wanderTeleportCooldown = 130 + random.nextInt(70);
+            wanderTeleportCooldown = 140 + random.nextInt(80);
             double angle = random.nextDouble() * Math.PI * 2.0D;
             double dist = 5.0D + random.nextDouble() * (ARENA_RADIUS - 9.0D);
             Vec3 candidate = new Vec3(arena.getX() + 0.5D + Math.cos(angle) * dist, arena.getY() + 1.0D, arena.getZ() + 0.5D + Math.sin(angle) * dist);
             Vec3 floorPos = snapToArenaFloor(level, candidate);
             if (floorPos != null && insideArena(floorPos, ARENA_RADIUS - 2.0D)) {
+                setRawPeekAmount(0);
                 level.sendParticles(ParticleTypes.PORTAL, getX(), getY() + 0.5D, getZ(), 30, 0.5D, 0.5D, 0.5D, 0.1D);
                 teleportTo(floorPos.x, floorPos.y, floorPos.z);
                 level.playSound(null, blockPosition(), SoundEvents.SHULKER_TELEPORT, SoundSource.HOSTILE, 2.0F, 0.9F);
@@ -172,9 +289,21 @@ public final class AethericBulwarkEntity extends Shulker {
         }
     }
 
-    private void ensureHealthInitialized() {
+    private void ensureHealthInitialized(ServerLevel serverLevel) {
         if (!initializedHealth) {
-            encounterMaxHealth = BASE_ENCOUNTER_HEALTH;
+            float bonus = 0.0F;
+            GameplayConfig.BossPlayerScaling cfg = GameplayConfig.current().world.bossPlayerScaling;
+            if (cfg.enabled && serverLevel.getServer() != null) {
+                int online = 0;
+                for (ServerPlayer player : serverLevel.getServer().getPlayerList().getPlayers()) {
+                    if (!player.isCreative() && !player.isSpectator()) online++;
+                }
+                int counted = ThreatScalingProfile.clampPlayerCount(online);
+                if (counted > 0) {
+                    bonus = (float) (ThreatScalingProfile.bossBonusHealth(counted) * 0.65D);
+                }
+            }
+            encounterMaxHealth = BASE_ENCOUNTER_HEALTH + bonus;
             encounterHealth = encounterMaxHealth;
             if (getAttribute(Attributes.MAX_HEALTH) != null) {
                 getAttribute(Attributes.MAX_HEALTH).setBaseValue(PHYSICAL_HEALTH_SEGMENT);
@@ -214,16 +343,16 @@ public final class AethericBulwarkEntity extends Shulker {
 
     private boolean isValidArenaTarget(ServerPlayer player) {
         return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator()
-            && insideArena(player.position(), ARENA_RADIUS);
+            && insideArena(player.position(), ARENA_RADIUS + 4.0D);
     }
 
     private boolean isValidCombatTarget(LivingEntity entity) {
         if (entity == null || !entity.isAlive() || entity == this) return false;
         if (entity instanceof Player player) {
-            return !player.isCreative() && !player.isSpectator() && insideArena(player.position(), ARENA_RADIUS);
+            return !player.isCreative() && !player.isSpectator() && insideArena(player.position(), ARENA_RADIUS + 4.0D);
         }
         if (entity.getTags().contains(MINION_TAG)) return false;
-        return insideArena(entity.position(), ARENA_RADIUS + 4.0D);
+        return insideArena(entity.position(), ARENA_RADIUS + 6.0D);
     }
 
     private void orbitalBarrage(ServerLevel level, LivingEntity target) {
@@ -336,9 +465,13 @@ public final class AethericBulwarkEntity extends Shulker {
         level.sendParticles(ParticleTypes.REVERSE_PORTAL, center.x, center.y + 1.0D, center.z, 160, 4.0D, 2.0D, 4.0D, 0.20D);
     }
 
-    /** Iron Shell Guard: Shulker closes shell, gains Resistance III (60% DR), and fires 8 radial homing bullets! */
+    /** Iron Shell Guard: Shulker slams shell shut, gains Resistance III (60% DR), and fires 8 radial homing bullets! */
     private void ironShellGuard(ServerLevel level, LivingEntity target) {
         shellGuardCooldown = 160;
+        shellGuardActiveTicks = 70;
+        castOpenTicks = 0;
+        setRawPeekAmount(0);
+        level.broadcastEntityEvent(this, EVENT_SHELL_SLAM);
         level.playSound(null, blockPosition(), SoundEvents.SHULKER_CLOSE, SoundSource.HOSTILE, 3.0F, 0.6F);
         addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 70, 2));
         for (int i = 0; i < 8; i++) {
@@ -413,11 +546,20 @@ public final class AethericBulwarkEntity extends Shulker {
         }
     }
 
-    private void enforceArena(Level level) {
-        if (arena.equals(BlockPos.ZERO)) return;
+    private void enforceArena(ServerLevel level) {
+        if (arena.equals(BlockPos.ZERO)) {
+            BlockPos nearestArena = BossArenaRegistryData.get(level.getServer())
+                .nearest(BossArenaRegistryData.Kind.AETHERIC, blockPosition());
+            if (nearestArena != null && nearestArena.distSqr(blockPosition()) <= (ARENA_RADIUS + 16.0D) * (ARENA_RADIUS + 16.0D)) {
+                arena = nearestArena.immutable();
+            } else {
+                return;
+            }
+        }
         if (!insideArena(position(), ARENA_RADIUS + 3.0D) || getY() < arena.getY() - 2.0D) {
-            // Altar is at arena.above(2); place the boss cleanly on top at arena.getY() + 3.0D.
-            teleportTo(arena.getX() + 0.5D, arena.getY() + 3.0D, arena.getZ() + 0.5D);
+            // Altar is at arena.above(2); place the boss cleanly on top at arena.getY() + 3.0D if altar exists, else snap to floor
+            double homeY = PromotionBossArenaService.hasBulwarkArena(level, arena) ? arena.getY() + 3.0D : arena.getY();
+            teleportTo(arena.getX() + 0.5D, homeY, arena.getZ() + 0.5D);
             setTarget(null);
             retaliationTargetId = null;
             return;
@@ -441,13 +583,15 @@ public final class AethericBulwarkEntity extends Shulker {
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        if (!(level() instanceof ServerLevel)) return super.hurt(source, amount);
+        if (!(level() instanceof ServerLevel serverLevel)) return super.hurt(source, amount);
         boolean bypasses = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
-        if (!bypasses && source.getEntity() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) {
+        if (!bypasses && source.getEntity() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS + 4.0D)) {
             return false;
         }
 
-        ensureHealthInitialized();
+        ensureHealthInitialized(serverLevel);
+        hadCombatEngagement = true;
+        inactiveTicks = 0;
         if (bypasses && amount >= encounterHealth) {
             encounterHealth = 0.0F;
             setHealth(0.0F);
@@ -489,6 +633,7 @@ public final class AethericBulwarkEntity extends Shulker {
         super.addAdditionalSaveData(tag);
         tag.putLong("Arena", arena.asLong());
         tag.putBoolean("InitializedHealth", initializedHealth);
+        tag.putBoolean("HadCombatEngagement", hadCombatEngagement);
         tag.putFloat("EncounterHealth", encounterHealth);
         tag.putFloat("EncounterMaxHealth", encounterMaxHealth);
         tag.putInt("LastPhase", lastPhase);
@@ -500,11 +645,15 @@ public final class AethericBulwarkEntity extends Shulker {
         super.readAdditionalSaveData(tag);
         if (tag.contains("Arena")) arena = BlockPos.of(tag.getLong("Arena"));
         initializedHealth = tag.getBoolean("InitializedHealth");
+        hadCombatEngagement = tag.getBoolean("HadCombatEngagement");
         if (tag.contains("EncounterHealth")) encounterHealth = tag.getFloat("EncounterHealth");
         if (tag.contains("EncounterMaxHealth")) encounterMaxHealth = tag.getFloat("EncounterMaxHealth");
         if (tag.contains("LastPhase")) lastPhase = tag.getInt("LastPhase");
         if (tag.hasUUID("RetaliationTarget")) retaliationTargetId = tag.getUUID("RetaliationTarget");
         if (initializedHealth && encounterMaxHealth > 0.0F && encounterHealth > 0.0F) {
+            if (getAttribute(Attributes.MAX_HEALTH) != null) {
+                getAttribute(Attributes.MAX_HEALTH).setBaseValue(PHYSICAL_HEALTH_SEGMENT);
+            }
             setHealth(PHYSICAL_HEALTH_SEGMENT);
         } else {
             initializedHealth = false;
@@ -514,6 +663,7 @@ public final class AethericBulwarkEntity extends Shulker {
     @Override
     public void die(DamageSource source) {
         pendingStrikes.clear();
+        setRawPeekAmount(0);
         if (level() instanceof ServerLevel level) {
             for (Shulker minion : level.getEntitiesOfClass(Shulker.class, getBoundingBox().inflate(ARENA_RADIUS + 16.0D),
                 e -> e != this && e.getTags().contains(MINION_TAG))) {

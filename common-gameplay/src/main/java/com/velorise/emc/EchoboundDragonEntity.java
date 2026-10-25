@@ -50,6 +50,9 @@ public final class EchoboundDragonEntity extends Phantom {
     public static final String CRYSTAL_TAG = "velorise_emc.echo_crystal";
     private static final byte EVENT_SLAM_START = 60;
     private static final byte EVENT_SLAM_IMPACT = 61;
+    private static final byte EVENT_ROAR_PULSE = 62;
+    private static final byte EVENT_CYCLONE_START = 63;
+    private static final byte EVENT_BEAM_CHARGE = 64;
     private static final String SOUL_TAG = "velorise_emc.echo_soul";
     private static final int SKILL_BEAM = 0;
     private static final int SKILL_VOLLEY = 1;
@@ -88,6 +91,13 @@ public final class EchoboundDragonEntity extends Phantom {
     private final List<EnderRainStrike> pendingEnderRain = new ArrayList<>();
     private final List<MeteorImpact> pendingMeteorImpacts = new ArrayList<>();
     private int clientSlamTicks;
+    private int clientRoarTicks;
+    private int clientCycloneTicks;
+    private int clientBeamTicks;
+    private float clientBankAngle;
+    private float prevClientBankAngle;
+    private float clientYawVelocity;
+    private float prevClientYaw;
     private final int[] skillCooldowns = new int[10];
     private int lastSkill = -1;
     private int beamChargeTicks;
@@ -172,6 +182,15 @@ public final class EchoboundDragonEntity extends Phantom {
         }
         if (level().isClientSide) {
             if (clientSlamTicks > 0) clientSlamTicks--;
+            if (clientRoarTicks > 0) clientRoarTicks--;
+            if (clientCycloneTicks > 0) clientCycloneTicks--;
+            if (clientBeamTicks > 0) clientBeamTicks--;
+            prevClientBankAngle = clientBankAngle;
+            float yawDelta = Mth.wrapDegrees(getYRot() - prevClientYaw);
+            prevClientYaw = getYRot();
+            clientYawVelocity = Mth.lerp(0.30F, clientYawVelocity, yawDelta);
+            float targetBank = Mth.clamp(-clientYawVelocity * 2.8F, -28.0F, 28.0F);
+            clientBankAngle = Mth.lerp(0.22F, clientBankAngle, targetBank);
             return;
         }
         if (!(level() instanceof ServerLevel serverLevel)) return;
@@ -248,6 +267,7 @@ public final class EchoboundDragonEntity extends Phantom {
     }
 
     private void playCrystalWeakeningSound(ServerLevel level) {
+        level.broadcastEntityEvent(this, EVENT_ROAR_PULSE);
         level.playSound(null, blockPosition(), SoundEvents.WITHER_HURT,
             SoundSource.HOSTILE, 5.5F, 0.55F);
         level.playSound(null, blockPosition(), SoundEvents.BEACON_DEACTIVATE,
@@ -257,6 +277,7 @@ public final class EchoboundDragonEntity extends Phantom {
     }
 
     private void playPhaseStrengthSound(ServerLevel level, int phase) {
+        level.broadcastEntityEvent(this, EVENT_ROAR_PULSE);
         level.playSound(null, blockPosition(), SoundEvents.ENDER_DRAGON_GROWL,
             SoundSource.HOSTILE, 7.0F, 0.62F + phase * 0.08F);
         level.playSound(null, blockPosition(), SoundEvents.BEACON_ACTIVATE,
@@ -372,7 +393,7 @@ public final class EchoboundDragonEntity extends Phantom {
     }
 
     private boolean isValidArenaTarget(LivingEntity entity) {
-        return isValidTarget(entity) && insideArena(entity.position(), ARENA_RADIUS);
+        return isValidTarget(entity) && insideArena(entity.position(), ARENA_RADIUS + 6.0D);
     }
 
     private LivingEntity nearestTarget(ServerLevel level) {
@@ -388,7 +409,7 @@ public final class EchoboundDragonEntity extends Phantom {
             retaliationTargetId = null;
         }
         ServerPlayer nearestPlayer = level.getEntitiesOfClass(ServerPlayer.class,
-                new AABB(arena).inflate(ARENA_RADIUS, 80.0D, ARENA_RADIUS), this::isValidArenaTarget).stream()
+                new AABB(arena).inflate(ARENA_RADIUS + 6.0D, 80.0D, ARENA_RADIUS + 6.0D), this::isValidArenaTarget).stream()
             .min(Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
         if (nearestPlayer != null) return nearestPlayer;
 
@@ -397,7 +418,7 @@ public final class EchoboundDragonEntity extends Phantom {
         }
 
         return level.getEntitiesOfClass(LivingEntity.class,
-                new AABB(arena).inflate(ARENA_RADIUS, 80.0D, ARENA_RADIUS), this::isValidArenaTarget).stream()
+                new AABB(arena).inflate(ARENA_RADIUS + 6.0D, 80.0D, ARENA_RADIUS + 6.0D), this::isValidArenaTarget).stream()
             .min(Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
     }
 
@@ -564,8 +585,25 @@ public final class EchoboundDragonEntity extends Phantom {
         queuedTarget = null;
         breathDiveTicks = 0;
         breathTarget = null;
+        slamTicks = 0;
         beamChargeTicks = 0;
         beamTarget = null;
+        wingCycloneTicks = 0;
+        resonanceSweepTicks = 0;
+        voidCollapseTicks = 0;
+        if (soulHarvestTicks > 0 && level() instanceof ServerLevel serverLevel) {
+            for (ArmorStand soul : serverLevel.getEntitiesOfClass(ArmorStand.class,
+                new AABB(arena).inflate(80.0D), e -> e.isAlive() && e.getTags().contains(SOUL_TAG))) {
+                soul.discard();
+            }
+        }
+        soulHarvestTicks = 0;
+        enderRainMarksRemaining = 0;
+        enderRainEndTick = 0;
+        enderRainTarget = null;
+        enderRainFinalQueued = false;
+        pendingEnderRain.clear();
+        pendingMeteorImpacts.clear();
         chainTicks = 0;
         chainedPlayers.clear();
         comboId = 0;
@@ -583,7 +621,7 @@ public final class EchoboundDragonEntity extends Phantom {
         lastSkill = skill;
         switch (skill) {
             case SKILL_BEAM -> { startSonicBeam(level, target); skillCooldowns[skill] = 70; }
-            case SKILL_VOLLEY -> { startVolley(target, random.nextBoolean() ? 1 : 2); skillCooldowns[skill] = 45; }
+            case SKILL_VOLLEY -> { startVolley(level, target, random.nextBoolean() ? 1 : 2); skillCooldowns[skill] = 45; }
             case SKILL_DIVE -> { startBreathDive(level, target); skillCooldowns[skill] = 95; }
             case SKILL_SLAM -> { startSlam(level, target); skillCooldowns[skill] = 150; }
             case SKILL_RAIN -> { startEnderRain(level, phase); skillCooldowns[skill] = 120; }
@@ -603,7 +641,8 @@ public final class EchoboundDragonEntity extends Phantom {
             || !pendingEnderRain.isEmpty();
     }
 
-    private void startVolley(LivingEntity target, int projectileKind) {
+    private void startVolley(ServerLevel level, LivingEntity target, int projectileKind) {
+        level.broadcastEntityEvent(this, EVENT_ROAR_PULSE);
         queuedProjectileKind = projectileKind;
         queuedShots = 3;
         nextQueuedShotTick = tickCount + 1;
@@ -639,6 +678,7 @@ public final class EchoboundDragonEntity extends Phantom {
     private void startBreathDive(ServerLevel level, LivingEntity target) {
         breathDiveTicks = 42;
         breathTarget = target.getUUID();
+        level.broadcastEntityEvent(this, EVENT_ROAR_PULSE);
         level.playSound(null, blockPosition(), SoundEvents.ENDER_DRAGON_GROWL, SoundSource.HOSTILE, 5.0F, 0.72F);
     }
 
@@ -701,6 +741,7 @@ public final class EchoboundDragonEntity extends Phantom {
         enderRainEndTick = tickCount + 100; // five seconds
         enderRainTarget = target.getUUID();
         enderRainFinalQueued = false;
+        level.broadcastEntityEvent(this, EVENT_ROAR_PULSE);
         level.playSound(null, arena, SoundEvents.WARDEN_SONIC_CHARGE,
             SoundSource.HOSTILE, 5.5F, 0.72F);
         level.sendParticles(ParticleTypes.REVERSE_PORTAL,
@@ -873,6 +914,7 @@ public final class EchoboundDragonEntity extends Phantom {
         beamChargeTicks = 20;
         beamTarget = target.getUUID();
         beamAim = target.getEyePosition();
+        level.broadcastEntityEvent(this, EVENT_BEAM_CHARGE);
         level.playSound(null, blockPosition(), SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 4.0F, 0.72F);
     }
 
@@ -919,6 +961,7 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void startWingCyclone(ServerLevel level) {
         wingCycloneTicks = 36;
+        level.broadcastEntityEvent(this, EVENT_CYCLONE_START);
         level.playSound(null, blockPosition(), SoundEvents.ENDER_DRAGON_FLAP, SoundSource.HOSTILE, 6.0F, 0.65F);
     }
 
@@ -994,6 +1037,7 @@ public final class EchoboundDragonEntity extends Phantom {
         resonanceSweepTicks = 52;
         resonanceSweepAngle = (float) (getYRot() * Math.PI / 180.0D) - 1.6F;
         sweepHitThisPulse.clear();
+        level.broadcastEntityEvent(this, EVENT_BEAM_CHARGE);
         level.playSound(null, blockPosition(), SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 4.0F, 1.18F);
     }
 
@@ -1026,6 +1070,7 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void startVoidCollapse(ServerLevel level) {
         voidCollapseTicks = 120;
+        level.broadcastEntityEvent(this, EVENT_ROAR_PULSE);
         level.playSound(null, arena, SoundEvents.END_PORTAL_SPAWN, SoundSource.HOSTILE, 5.0F, 0.72F);
     }
 
@@ -1052,6 +1097,7 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void startSoulHarvest(ServerLevel level) {
         soulHarvestTicks = 120;
+        level.broadcastEntityEvent(this, EVENT_ROAR_PULSE);
         for (int i = 0; i < 6; i++) {
             double a = Math.PI * 2.0D * i / 6.0D;
             ArmorStand soul = EntityType.ARMOR_STAND.create(level);
@@ -1152,7 +1198,7 @@ public final class EchoboundDragonEntity extends Phantom {
             if (comboStep == 0) { executeSkill(level, phase, target, SKILL_RAIN); comboNextTick = tickCount + 80; }
             else { executeSkill(level, phase, target, SKILL_DIVE); comboId = 0; }
         } else if (comboId == 2) { // Skybreaker
-            if (comboStep == 0) { startVolley(target, 2); comboNextTick = tickCount + 50; }
+            if (comboStep == 0) { startVolley(level, target, 2); comboNextTick = tickCount + 50; }
             else { executeSkill(level, phase, target, SKILL_SLAM); comboId = 0; }
         } else if (comboId == 3) { // No Safe Ground
             if (comboStep == 0) { executeSkill(level, phase, target, SKILL_RAIN); comboNextTick = tickCount + 85; }
@@ -1177,6 +1223,15 @@ public final class EchoboundDragonEntity extends Phantom {
     }
 
     public boolean isClientSlamming() { return clientSlamTicks > 0; }
+    public boolean isClientRoaring() { return clientRoarTicks > 0; }
+    public boolean isClientCycloning() { return clientCycloneTicks > 0; }
+    public boolean isClientBeamCharging() { return clientBeamTicks > 0; }
+    public float clientBankDegrees(float partialTick) {
+        return Mth.lerp(partialTick, prevClientBankAngle, clientBankAngle);
+    }
+    public float clientTurnFactor() {
+        return Mth.clamp(clientYawVelocity * 0.12F, -1.0F, 1.0F);
+    }
 
     @Override
     public void handleEntityEvent(byte id) {
@@ -1185,6 +1240,12 @@ public final class EchoboundDragonEntity extends Phantom {
         } else if (id == EVENT_SLAM_IMPACT) {
             clientSlamTicks = 0;
             EchoboundClientEffects.startShake(position(), 18, 1.0F);
+        } else if (id == EVENT_ROAR_PULSE) {
+            clientRoarTicks = 30;
+        } else if (id == EVENT_CYCLONE_START) {
+            clientCycloneTicks = 36;
+        } else if (id == EVENT_BEAM_CHARGE) {
+            clientBeamTicks = 28;
         } else {
             super.handleEntityEvent(id);
         }
@@ -1195,7 +1256,7 @@ public final class EchoboundDragonEntity extends Phantom {
         if (!(level() instanceof ServerLevel serverLevel)) return super.hurt(source, amount);
         boolean bypasses = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
         if (!bypasses) {
-            if (source.getEntity() instanceof LivingEntity attacker && !insideArena(attacker.position(), ARENA_RADIUS)) return false;
+            if (source.getEntity() instanceof LivingEntity attacker && !insideArena(attacker.position(), ARENA_RADIUS + 6.0D)) return false;
             List<EndCrystal> crystals = activeCrystals(serverLevel);
             // The boss uses its invulnerable texture whenever an Echo Crystal is active,
             // so combat must match that visual state in every crystal phase.

@@ -9,6 +9,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [2.0.2] - 2026-10-25
 
 ### Added
+- **Boss Visual Overhaul & Dynamic Client Animations:**
+  - Implemented dynamic flight tilt, hover bobbing, cast pulsing, and dash trails in `InfernalCrucibleRenderer`.
+  - Added dynamic shell pulsing, slam animations, and teleport bursts in `AethericBulwarkRenderer`.
+  - Added banking angle interpolation, turning factor, roar pulse, and beam charging animations in `EchoboundDragonRenderer` and `EchoboundDragonModel`.
+  - Handled unloaded chunks gracefully in `ArenaSummonService` during rituals and expanded living boss detection to 96m to prevent Eye item waste.
+  - Enhanced arena positioning, structure location commands, and ritual progression in `PromotionBossArenaService` and `LastEchoCitadelService`.
 - **Autonomous Arena Wandering & Retaliation AI (All 4 Bosses):**
   - All four bosses (`InfernalCrucibleEntity`, `AethericBulwarkEntity`, `DeepboundWardenEntity`, `EchoboundDragonEntity`) now actively wander, orbit, and patrol their arenas when no survival players are present, instead of remaining idle or freezing.
   - Added revenge/retaliation targeting: when any mob or entity attacks a boss (e.g. Iron Golems, skeletons, Withers, or other mod bosses), the boss immediately retaliates, targets the attacker, and executes combat skills against them.

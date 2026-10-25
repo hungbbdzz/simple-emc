@@ -108,14 +108,16 @@ public final class PromotionBossEyeItem extends Item {
             sp.displayClientMessage(Component.literal("The eye cannot sense a suitable arena landmark nearby."), true);
             return InteractionResultHolder.fail(stack);
         }
-        double horizontal = Math.sqrt(player.blockPosition().distSqr(new BlockPos(target.getX(), player.blockPosition().getY(), target.getZ())));
+        BlockPos arena = targetIsArena ? target
+            : (kind == Kind.AETHERIC_BULWARK
+                ? new BlockPos(target.getX() + 48, Math.max(58, target.getY()), target.getZ())
+                : new BlockPos(target.getX() + 48, -49, target.getZ()));
+        double horizontal = Math.sqrt(player.blockPosition().distSqr(new BlockPos(arena.getX(), player.blockPosition().getY(), arena.getZ())));
         if (horizontal > SUMMON_DISTANCE) {
-            spawnGuideLine(serverLevel, sp, target, kind);
+            spawnGuideLine(serverLevel, sp, arena, kind);
             player.getCooldowns().addCooldown(this, 30);
             return InteractionResultHolder.success(stack);
         }
-        BlockPos arena = targetIsArena ? target
-            : (kind == Kind.AETHERIC_BULWARK ? target.offset(48, 0, 0) : target.offset(48, 2, 0));
         if (kind == Kind.AETHERIC_BULWARK ? !PromotionBossArenaService.hasBulwarkArena(serverLevel, arena)
             : !PromotionBossArenaService.hasDeepboundArena(serverLevel, arena)) {
             if (kind == Kind.AETHERIC_BULWARK) PromotionBossArenaService.buildBulwarkArena(serverLevel, arena);

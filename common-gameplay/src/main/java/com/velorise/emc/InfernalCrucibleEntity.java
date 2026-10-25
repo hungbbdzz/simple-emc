@@ -1,6 +1,7 @@
 package com.velorise.emc;
 
-import net.minecraft.commands.arguments.EntityAnchorArgument;
+import com.velorise.emc.common.GameplayConfig;
+import com.velorise.emc.common.ThreatScalingProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -13,6 +14,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -45,6 +47,8 @@ public final class InfernalCrucibleEntity extends Blaze {
     /** Vanilla clamps MAX_HEALTH to 1024, so damage is resolved against a 1000-HP physical segment. */
     private static final float PHYSICAL_HEALTH_SEGMENT = 1_000.0F;
     private static final int MAX_ACTIVE_MINIONS = 6;
+    private static final byte EVENT_CAST_PULSE = 60;
+    private static final byte EVENT_DASH_BURST = 61;
 
     private final ServerBossEvent bossBar = new ServerBossEvent(
         Component.translatable("entity.velorise_emc.infernal_crucible"),
@@ -53,6 +57,8 @@ public final class InfernalCrucibleEntity extends Blaze {
     );
     private BlockPos arena = BlockPos.ZERO;
     private boolean initializedHealth;
+    private boolean hadCombatEngagement;
+    private int inactiveTicks;
     private float encounterHealth = BASE_ENCOUNTER_HEALTH;
     private float encounterMaxHealth = BASE_ENCOUNTER_HEALTH;
     private int skillClock;
@@ -62,12 +68,43 @@ public final class InfernalCrucibleEntity extends Blaze {
 
     private int queuedFireballs;
     private int fireballLaunchTimer;
+    private int flareTicks;
 
     private int dashTicks;
     private Vec3 dashVelocity = Vec3.ZERO;
     private UUID dashTargetId;
     private boolean dashDealtDamage;
     private UUID retaliationTargetId;
+    private int lookAroundTimer;
+    private float idleYawOffset;
+
+    private int clientCastPulseTicks;
+    private int clientDashTicks;
+
+    private static net.minecraft.network.syncher.EntityDataAccessor<Byte> BLAZE_FLAGS;
+    static {
+        try {
+            for (java.lang.reflect.Field f : Blaze.class.getDeclaredFields()) {
+                if (f.getType() == net.minecraft.network.syncher.EntityDataAccessor.class) {
+                    f.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    net.minecraft.network.syncher.EntityDataAccessor<Byte> accessor =
+                        (net.minecraft.network.syncher.EntityDataAccessor<Byte>) f.get(null);
+                    BLAZE_FLAGS = accessor;
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public void setCharged(boolean charged) {
+        if (BLAZE_FLAGS != null) {
+            byte b = this.entityData.get(BLAZE_FLAGS);
+            if (charged) b = (byte) (b | 1);
+            else b = (byte) (b & -2);
+            this.entityData.set(BLAZE_FLAGS, b);
+        }
+    }
 
     private final List<PendingGeyser> pendingGeysers = new ArrayList<>();
 
@@ -82,6 +119,14 @@ public final class InfernalCrucibleEntity extends Blaze {
 
     public void bindArena(BlockPos center) {
         arena = center.immutable();
+    }
+
+    public int clientCastPulseTicks() {
+        return clientCastPulseTicks;
+    }
+
+    public int clientDashTicks() {
+        return clientDashTicks;
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -103,24 +148,46 @@ public final class InfernalCrucibleEntity extends Blaze {
 
     @Override public boolean removeWhenFarAway(double distance) { return false; }
     @Override protected boolean shouldDespawnInPeaceful() { return false; }
+    @Override public boolean causeFallDamage(float fallDistance, float multiplier, DamageSource source) { return false; }
 
     @Override public void startSeenByPlayer(ServerPlayer player) { super.startSeenByPlayer(player); bossBar.addPlayer(player); }
     @Override public void stopSeenByPlayer(ServerPlayer player) { super.stopSeenByPlayer(player); bossBar.removePlayer(player); }
 
     @Override
+    public void handleEntityEvent(byte id) {
+        if (id == EVENT_CAST_PULSE) {
+            clientCastPulseTicks = 18;
+        } else if (id == EVENT_DASH_BURST) {
+            clientDashTicks = 14;
+        } else {
+            super.handleEntityEvent(id);
+        }
+    }
+
+    @Override
     public void tick() {
         super.tick();
-        if (level().isClientSide) return;
+        if (level().isClientSide) {
+            if (clientCastPulseTicks > 0) clientCastPulseTicks--;
+            if (clientDashTicks > 0) clientDashTicks--;
+            return;
+        }
         if (!(level() instanceof ServerLevel serverLevel)) return;
 
-        ensureHealthInitialized();
+        ensureHealthInitialized(serverLevel);
         float healthRatio = encounterMaxHealth <= 0.0F ? 0.0F : Mth.clamp(encounterHealth / encounterMaxHealth, 0.0F, 1.0F);
         bossBar.setProgress(healthRatio);
-        enforceArena();
+        enforceArena(serverLevel);
+
+        if (flareTicks > 0) flareTicks--;
 
         phase = healthRatio > 0.66F ? 1 : healthRatio > 0.33F ? 2 : 3;
-        if (phase > lastPhase) {
+        if (phase < lastPhase) {
             lastPhase = phase;
+        } else if (phase > lastPhase) {
+            lastPhase = phase;
+            flareTicks = 60;
+            serverLevel.broadcastEntityEvent(this, EVENT_CAST_PULSE);
             serverLevel.playSound(null, blockPosition(), SoundEvents.BEACON_DEACTIVATE, SoundSource.HOSTILE, 3.5F, 0.65F);
             serverLevel.playSound(null, blockPosition(), SoundEvents.GLASS_BREAK, SoundSource.HOSTILE, 2.5F, 0.5F);
             serverLevel.playSound(null, blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.HOSTILE, 3.0F, 0.7F);
@@ -133,16 +200,33 @@ public final class InfernalCrucibleEntity extends Blaze {
         LivingEntity target = findCombatTarget(serverLevel);
         setTarget(target);
 
+        // Drive authentic Vanilla Blaze charged/on-fire visual state so client renders intense flames and rod flare
+        boolean visiblyCharged = target != null && (phase >= 2 || queuedFireballs > 0 || dashTicks > 0 || flareTicks > 0 || skillClock > 32);
+        setCharged(visiblyCharged);
+        setSharedFlagOnFire(visiblyCharged || target != null);
+
         if (dashTicks > 0) {
             tickInfernalDash(serverLevel);
             return;
         }
 
         if (target != null) {
-            getLookControl().setLookAt(target, 180.0F, 180.0F);
-            lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
+            hadCombatEngagement = true;
+            inactiveTicks = 0;
+            smoothFaceTarget(target, 32.0F, 28.0F);
             flyKeepDistance(serverLevel, target);
         } else {
+            inactiveTicks++;
+            queuedFireballs = 0;
+            pendingGeysers.clear();
+            if (hadCombatEngagement && inactiveTicks >= 200 && encounterHealth < encounterMaxHealth) {
+                encounterHealth = Math.min(encounterMaxHealth, encounterHealth + encounterMaxHealth * 0.025F);
+                if (encounterHealth >= encounterMaxHealth) {
+                    hadCombatEngagement = false;
+                    phase = 1;
+                    lastPhase = 1;
+                }
+            }
             wanderAroundArena(serverLevel);
             return;
         }
@@ -157,6 +241,9 @@ public final class InfernalCrucibleEntity extends Blaze {
             skill = (skill + 1 + random.nextInt(poolSize - 1)) % poolSize;
         }
         lastSkill = skill;
+        flareTicks = Math.max(flareTicks, 26);
+        serverLevel.broadcastEntityEvent(this, EVENT_CAST_PULSE);
+        swing(InteractionHand.MAIN_HAND);
 
         switch (skill) {
             case 0 -> chargeCrownFireballs(serverLevel);
@@ -170,9 +257,34 @@ public final class InfernalCrucibleEntity extends Blaze {
         }
     }
 
-    private void ensureHealthInitialized() {
+    private void smoothFaceTarget(LivingEntity target, float maxYawTurn, float maxPitchTurn) {
+        Vec3 eye = target.getEyePosition();
+        getLookControl().setLookAt(eye.x, eye.y, eye.z, maxYawTurn, maxPitchTurn);
+        double dx = eye.x - getX();
+        double dz = eye.z - getZ();
+        if (dx * dx + dz * dz > 1.0E-4D) {
+            float desiredYaw = (float) (Mth.atan2(dz, dx) * (180.0D / Math.PI)) - 90.0F;
+            setYRot(Mth.rotLerp(0.26F, getYRot(), desiredYaw));
+            yBodyRot = Mth.rotLerp(0.22F, yBodyRot, getYRot());
+            yHeadRot = Mth.rotLerp(0.32F, yHeadRot, desiredYaw);
+        }
+    }
+
+    private void ensureHealthInitialized(ServerLevel serverLevel) {
         if (!initializedHealth) {
-            encounterMaxHealth = BASE_ENCOUNTER_HEALTH;
+            float bonus = 0.0F;
+            GameplayConfig.BossPlayerScaling cfg = GameplayConfig.current().world.bossPlayerScaling;
+            if (cfg.enabled && serverLevel.getServer() != null) {
+                int online = 0;
+                for (ServerPlayer player : serverLevel.getServer().getPlayerList().getPlayers()) {
+                    if (!player.isCreative() && !player.isSpectator()) online++;
+                }
+                int counted = ThreatScalingProfile.clampPlayerCount(online);
+                if (counted > 0) {
+                    bonus = (float) (ThreatScalingProfile.bossBonusHealth(counted) * 0.5D);
+                }
+            }
+            encounterMaxHealth = BASE_ENCOUNTER_HEALTH + bonus;
             encounterHealth = encounterMaxHealth;
             if (getAttribute(Attributes.MAX_HEALTH) != null) {
                 getAttribute(Attributes.MAX_HEALTH).setBaseValue(PHYSICAL_HEALTH_SEGMENT);
@@ -212,16 +324,16 @@ public final class InfernalCrucibleEntity extends Blaze {
 
     private boolean isValidArenaTarget(ServerPlayer player) {
         return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator()
-            && insideArena(player.position(), ARENA_RADIUS);
+            && insideArena(player.position(), ARENA_RADIUS + 4.0D);
     }
 
     private boolean isValidCombatTarget(LivingEntity entity) {
         if (entity == null || !entity.isAlive() || entity == this) return false;
         if (entity instanceof Player player) {
-            return !player.isCreative() && !player.isSpectator() && insideArena(player.position(), ARENA_RADIUS);
+            return !player.isCreative() && !player.isSpectator() && insideArena(player.position(), ARENA_RADIUS + 4.0D);
         }
         if (entity.getTags().contains(MINION_TAG)) return false;
-        return insideArena(entity.position(), ARENA_RADIUS + 4.0D);
+        return insideArena(entity.position(), ARENA_RADIUS + 6.0D);
     }
 
     /** Gradually launches queued fireballs from above the boss's head one by one. */
@@ -270,6 +382,7 @@ public final class InfernalCrucibleEntity extends Blaze {
 
     /** Infernal Dash: Propels the boss across the arena through the target over 14 ticks. */
     private void infernalDash(ServerLevel level, LivingEntity target) {
+        level.broadcastEntityEvent(this, EVENT_DASH_BURST);
         level.playSound(null, blockPosition(), SoundEvents.BLAZE_SHOOT, SoundSource.HOSTILE, 3.0F, 0.5F);
         level.playSound(null, blockPosition(), SoundEvents.FIRECHARGE_USE, SoundSource.HOSTILE, 2.5F, 0.8F);
 
@@ -296,6 +409,12 @@ public final class InfernalCrucibleEntity extends Blaze {
 
         setDeltaMovement(dashVelocity);
         hasImpulse = true;
+        if (dashVelocity.horizontalDistanceSqr() > 1.0E-4D) {
+            float yaw = (float) (Mth.atan2(dashVelocity.z, dashVelocity.x) * (180.0D / Math.PI)) - 90.0F;
+            setYRot(Mth.rotLerp(0.45F, getYRot(), yaw));
+            yBodyRot = getYRot();
+            yHeadRot = getYRot();
+        }
         level.sendParticles(ParticleTypes.LAVA, getX(), getY() + 1.0D, getZ(), 5, 0.35D, 0.35D, 0.35D, 0.05D);
         level.sendParticles(ParticleTypes.FLAME, getX(), getY() + 1.0D, getZ(), 10, 0.45D, 0.45D, 0.45D, 0.06D);
 
@@ -307,6 +426,7 @@ public final class InfernalCrucibleEntity extends Blaze {
                 victim.setRemainingFireTicks(Math.max(victim.getRemainingFireTicks(), 100));
                 Vec3 push = dashVelocity.normalize().scale(1.45D);
                 victim.push(push.x, 0.45D, push.z);
+                victim.hasImpulse = true;
                 level.playSound(null, victim.getX(), victim.getY(), victim.getZ(),
                     SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 2.0F, 1.2F);
             }
@@ -315,7 +435,7 @@ public final class InfernalCrucibleEntity extends Blaze {
         if (dashTicks <= 0 && dashTargetId != null) {
             Entity ent = level.getEntity(dashTargetId);
             if (ent instanceof LivingEntity le && isValidCombatTarget(le)) {
-                getLookControl().setLookAt(le, 180.0F, 180.0F);
+                smoothFaceTarget(le, 60.0F, 45.0F);
             }
             dashTargetId = null;
         }
@@ -330,34 +450,37 @@ public final class InfernalCrucibleEntity extends Blaze {
         double dist = horizontalToTarget.length();
         Vec3 radialDir = dist > 1.0E-4D ? horizontalToTarget.scale(1.0D / dist) : new Vec3(1.0D, 0.0D, 0.0D);
 
-        // True tangent perpendicular to radial direction so the boss orbits around the player.
-        double orbitSign = ((tickCount / 90) & 1) == 0 ? 1.0D : -1.0D;
+        // Smoothly vary orbit direction and speed so flight feels organic rather than robotic
+        double orbitSign = Math.sin(tickCount * 0.032D) >= 0.0D ? 1.0D : -1.0D;
         Vec3 tangentDir = new Vec3(-radialDir.z * orbitSign, 0.0D, radialDir.x * orbitSign);
 
-        double targetY = arena.equals(BlockPos.ZERO) ? target.getY() + 4.5D : arena.getY() + 5.5D + Math.sin(tickCount * 0.06D) * 1.0D;
+        double baseHoverY = arena.equals(BlockPos.ZERO) ? target.getY() + 4.2D : Math.max(arena.getY() + 4.5D, target.getY() + 3.8D);
+        double targetY = baseHoverY + Math.sin(tickCount * 0.075D) * 1.15D;
         double dy = Mth.clamp((targetY - getY()) * 0.14D, -0.35D, 0.35D);
 
         double radialSpeed = 0.0D;
         if (dist < 10.0D) {
-            radialSpeed = -0.34D;
+            radialSpeed = -0.34D * ((10.0D - dist) / 4.0D + 0.4D);
         } else if (dist > 17.5D) {
-            radialSpeed = 0.36D;
+            radialSpeed = 0.36D * Math.min(1.5D, (dist - 17.5D) / 6.0D + 0.5D);
         }
         double tangentSpeed = 0.28D + phase * 0.04D;
 
-        Vec3 moveVec = radialDir.scale(radialSpeed).add(tangentDir.scale(tangentSpeed)).add(0.0D, dy, 0.0D);
+        Vec3 desiredVel = radialDir.scale(radialSpeed).add(tangentDir.scale(tangentSpeed)).add(0.0D, dy, 0.0D);
 
         // Prevent pushing the boss out of the arena boundary to force an arena reset.
         if (!arena.equals(BlockPos.ZERO)) {
             Vec3 center = new Vec3(arena.getX() + 0.5D, getY(), arena.getZ() + 0.5D);
-            Vec3 nextHorizontal = new Vec3(bossPos.x + moveVec.x - center.x, 0.0D, bossPos.z + moveVec.z - center.z);
+            Vec3 nextHorizontal = new Vec3(bossPos.x + desiredVel.x - center.x, 0.0D, bossPos.z + desiredVel.z - center.z);
             double maxOrbitRadius = ARENA_RADIUS - 3.0D;
             if (nextHorizontal.lengthSqr() > maxOrbitRadius * maxOrbitRadius) {
                 Vec3 inward = center.subtract(bossPos).normalize().scale(0.38D);
-                moveVec = new Vec3(inward.x + tangentDir.x * tangentSpeed, dy, inward.z + tangentDir.z * tangentSpeed);
+                desiredVel = new Vec3(inward.x + tangentDir.x * tangentSpeed, dy, inward.z + tangentDir.z * tangentSpeed);
             }
         }
 
+        // Smooth velocity damping so flight acceleration/deceleration is silky smooth
+        Vec3 moveVec = getDeltaMovement().scale(0.68D).add(desiredVel.scale(0.32D));
         setDeltaMovement(moveVec);
         hasImpulse = true;
 
@@ -383,18 +506,27 @@ public final class InfernalCrucibleEntity extends Blaze {
         Vec3 toTarget = targetPos.subtract(position());
         double dist = toTarget.length();
 
-        Vec3 moveVec;
+        Vec3 desiredVel;
         if (dist > 0.3D) {
-            moveVec = toTarget.normalize().scale(Math.min(0.26D, dist * 0.1D));
+            desiredVel = toTarget.normalize().scale(Math.min(0.26D, dist * 0.1D));
         } else {
-            moveVec = new Vec3(-Math.sin(patrolAngle) * 0.22D, Math.cos(tickCount * 0.04D) * 0.04D, Math.cos(patrolAngle) * 0.22D);
+            desiredVel = new Vec3(-Math.sin(patrolAngle) * 0.22D, Math.cos(tickCount * 0.04D) * 0.04D, Math.cos(patrolAngle) * 0.22D);
         }
 
+        Vec3 moveVec = getDeltaMovement().scale(0.75D).add(desiredVel.scale(0.25D));
         setDeltaMovement(moveVec);
         hasImpulse = true;
 
-        if (moveVec.horizontalDistanceSqr() > 0.005D) {
-            getLookControl().setLookAt(getX() + moveVec.x * 5.0D, getY() + moveVec.y * 5.0D, getZ() + moveVec.z * 5.0D, 15.0F, 15.0F);
+        if (--lookAroundTimer <= 0) {
+            lookAroundTimer = 35 + random.nextInt(35);
+            idleYawOffset = (random.nextFloat() - 0.5F) * 45.0F;
+        }
+
+        if (moveVec.horizontalDistanceSqr() > 0.003D) {
+            float travelYaw = (float) (Mth.atan2(moveVec.z, moveVec.x) * (180.0D / Math.PI)) - 90.0F;
+            setYRot(Mth.rotLerp(0.18F, getYRot(), travelYaw));
+            yBodyRot = Mth.rotLerp(0.16F, yBodyRot, getYRot());
+            yHeadRot = Mth.rotLerp(0.20F, yHeadRot, travelYaw + idleYawOffset);
         }
 
         if (tickCount % 6 == 0) {
@@ -513,6 +645,7 @@ public final class InfernalCrucibleEntity extends Blaze {
                     victim.hurt(level.damageSources().mobAttack(this), 18.0F + phase * 2.0F);
                     victim.setRemainingFireTicks(Math.max(victim.getRemainingFireTicks(), 100));
                     victim.push(0.0D, 0.55D, 0.0D);
+                    victim.hasImpulse = true;
                 }
             }
             it.remove();
@@ -567,8 +700,16 @@ public final class InfernalCrucibleEntity extends Blaze {
         addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, 120, 1));
     }
 
-    private void enforceArena() {
-        if (arena.equals(BlockPos.ZERO)) return;
+    private void enforceArena(ServerLevel level) {
+        if (arena.equals(BlockPos.ZERO)) {
+            BlockPos nearestArena = BossArenaRegistryData.get(level.getServer())
+                .nearest(BossArenaRegistryData.Kind.INFERNAL, blockPosition());
+            if (nearestArena != null && nearestArena.distSqr(blockPosition()) <= (ARENA_RADIUS + 16.0D) * (ARENA_RADIUS + 16.0D)) {
+                arena = nearestArena.immutable();
+            } else {
+                return;
+            }
+        }
         if (!insideArena(position(), ARENA_RADIUS + 5.0D) || getY() < arena.getY() - 4.0D || getY() > arena.getY() + 26.0D) {
             teleportTo(arena.getX() + 0.5D, arena.getY() + 5.0D, arena.getZ() + 0.5D);
             setDeltaMovement(Vec3.ZERO);
@@ -598,13 +739,15 @@ public final class InfernalCrucibleEntity extends Blaze {
     @Override
     public boolean hurt(DamageSource source, float amount) {
         if (source.is(DamageTypeTags.IS_FIRE)) return false;
-        if (!(level() instanceof ServerLevel)) return super.hurt(source, amount);
+        if (!(level() instanceof ServerLevel serverLevel)) return super.hurt(source, amount);
         boolean bypasses = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
-        if (!bypasses && source.getEntity() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) {
+        if (!bypasses && source.getEntity() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS + 4.0D)) {
             return false;
         }
 
-        ensureHealthInitialized();
+        ensureHealthInitialized(serverLevel);
+        hadCombatEngagement = true;
+        inactiveTicks = 0;
         if (bypasses && amount >= encounterHealth) {
             encounterHealth = 0.0F;
             setHealth(0.0F);
@@ -646,6 +789,7 @@ public final class InfernalCrucibleEntity extends Blaze {
         super.addAdditionalSaveData(tag);
         tag.putLong("Arena", arena.asLong());
         tag.putBoolean("InitializedHealth", initializedHealth);
+        tag.putBoolean("HadCombatEngagement", hadCombatEngagement);
         tag.putFloat("EncounterHealth", encounterHealth);
         tag.putFloat("EncounterMaxHealth", encounterMaxHealth);
         tag.putInt("LastPhase", lastPhase);
@@ -657,11 +801,15 @@ public final class InfernalCrucibleEntity extends Blaze {
         super.readAdditionalSaveData(tag);
         if (tag.contains("Arena")) arena = BlockPos.of(tag.getLong("Arena"));
         initializedHealth = tag.getBoolean("InitializedHealth");
+        hadCombatEngagement = tag.getBoolean("HadCombatEngagement");
         if (tag.contains("EncounterHealth")) encounterHealth = tag.getFloat("EncounterHealth");
         if (tag.contains("EncounterMaxHealth")) encounterMaxHealth = tag.getFloat("EncounterMaxHealth");
         if (tag.contains("LastPhase")) lastPhase = tag.getInt("LastPhase");
         if (tag.hasUUID("RetaliationTarget")) retaliationTargetId = tag.getUUID("RetaliationTarget");
         if (initializedHealth && encounterMaxHealth > 0.0F && encounterHealth > 0.0F) {
+            if (getAttribute(Attributes.MAX_HEALTH) != null) {
+                getAttribute(Attributes.MAX_HEALTH).setBaseValue(PHYSICAL_HEALTH_SEGMENT);
+            }
             setHealth(PHYSICAL_HEALTH_SEGMENT);
         } else {
             initializedHealth = false;

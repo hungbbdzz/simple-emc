@@ -37,6 +37,14 @@ public final class EchoboundDragonRenderer extends MobRenderer<EchoboundDragonEn
             poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - yHeadRot));
         } else {
             super.setupRotations(entity, poseStack, bob, yHeadRot, partialTick, scale);
+            float bank = entity.clientBankDegrees(partialTick);
+            if (Math.abs(bank) > 0.01F) {
+                poseStack.mulPose(Axis.ZP.rotationDegrees(bank));
+            }
+            float pitch = Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
+            if (!entity.isClientSlamming() && Math.abs(pitch) > 0.01F) {
+                poseStack.mulPose(Axis.XP.rotationDegrees(pitch * 0.45F));
+            }
         }
     }
 
@@ -60,9 +68,6 @@ public final class EchoboundDragonRenderer extends MobRenderer<EchoboundDragonEn
             this.model.prepareMobModel(entity, 0.0F, 0.0F, partialTick);
             this.model.setupAnim(entity, 0.0F, 0.0F, entity.tickCount + partialTick, 0.0F, 0.0F);
 
-            // Reproduce LivingEntityRenderer's complete model transform. The previous
-            // manual death pass omitted the -Y model-space flip, so the exploding dragon
-            // was rendered belly-up even though setupRotations itself was correct.
             poseStack.pushPose();
             this.setupRotations(entity, poseStack, 0.0F, entity.getYRot(), partialTick, 1.0F);
             this.scale(entity, poseStack, partialTick);

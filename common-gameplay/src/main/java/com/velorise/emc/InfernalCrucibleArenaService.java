@@ -42,11 +42,11 @@ public final class InfernalCrucibleArenaService {
         int dx = Math.abs(clicked.getX() - center.getX());
         int dz = Math.abs(clicked.getZ() - center.getZ());
         int dy = clicked.getY() - center.getY();
-        return dx <= 4 && dz <= 4 && dy >= 0 && dy <= 3;
+        return dx <= 5 && dz <= 5 && dy >= -1 && dy <= 4;
     }
 
     public static BlockPos findAltarCenter(ServerLevel level, BlockPos clicked) {
-        for (int y = -3; y <= 1; y++) {
+        for (int y = -4; y <= 2; y++) {
             for (int x = -6; x <= 6; x++) {
                 for (int z = -6; z <= 6; z++) {
                     BlockPos candidate = clicked.offset(x, y, z);
@@ -317,17 +317,18 @@ public final class InfernalCrucibleArenaService {
 
     public static boolean summonBoss(ServerLevel level, BlockPos center) {
         if (level.dimension() != Level.NETHER) return false;
-        if (!level.getEntitiesOfClass(InfernalCrucibleEntity.class, new AABB(center).inflate(96)).isEmpty()) return false;
+        if (!level.getEntitiesOfClass(InfernalCrucibleEntity.class, new AABB(center).inflate(96), e -> e.isAlive()).isEmpty()) return false;
         InfernalCrucibleEntity boss = VeloriseEMC.INFERNAL_CRUCIBLE.get().create(level);
         if (boss == null) return false;
-        boss.bindArena(center);
-        boss.moveTo(center.getX() + .5D, center.getY() + 5.0D, center.getZ() + .5D, 0, 0);
+        BlockPos resolved = hasArena(level, center) ? center : PromotionBossArenaService.snapPlacementFloor(level, center);
+        boss.bindArena(resolved);
+        boss.moveTo(resolved.getX() + .5D, resolved.getY() + 5.0D, resolved.getZ() + .5D, 0, 0);
         return level.addFreshEntity(boss);
     }
 
     public static int placeArena(CommandSourceStack source) {
         if (source.getLevel().dimension() != Level.NETHER) { source.sendFailure(Component.literal("Infernal Crucible arena requires the Nether.")); return 0; }
-        BlockPos center = StructureCommandPlacement.ahead(source, 56);
+        BlockPos center = PromotionBossArenaService.snapPlacementFloor(source.getLevel(), StructureCommandPlacement.ahead(source, 56));
         buildArena(source.getLevel(), center);
         source.sendSuccess(() -> Component.literal("Placed Infernal Crucible arena at " + center.toShortString() + "."), true);
         return 1;
@@ -335,9 +336,17 @@ public final class InfernalCrucibleArenaService {
 
     public static int summon(CommandSourceStack source) {
         if (source.getLevel().dimension() != Level.NETHER) { source.sendFailure(Component.literal("Infernal Crucible requires the Nether.")); return 0; }
-        BlockPos center = BlockPos.containing(source.getPosition());
-        if (!summonBoss(source.getLevel(), center)) { source.sendFailure(Component.literal("Could not summon The Infernal Crucible.")); return 0; }
-        source.sendSuccess(() -> Component.literal("Summoned The Infernal Crucible at " + center.toShortString() + "."), true);
+        BlockPos origin = BlockPos.containing(source.getPosition());
+        BlockPos center = findAltarCenter(source.getLevel(), origin);
+        if (center == null) {
+            BlockPos nearest = BossArenaRegistryData.get(source.getServer()).nearest(BossArenaRegistryData.Kind.INFERNAL, origin);
+            center = (nearest != null && nearest.distSqr(origin) <= 64.0D * 64.0D)
+                ? nearest
+                : PromotionBossArenaService.snapPlacementFloor(source.getLevel(), origin);
+        }
+        final BlockPos summonPos = center;
+        if (!summonBoss(source.getLevel(), summonPos)) { source.sendFailure(Component.literal("Could not summon The Infernal Crucible.")); return 0; }
+        source.sendSuccess(() -> Component.literal("Summoned The Infernal Crucible at " + summonPos.toShortString() + "."), true);
         return 1;
     }
 

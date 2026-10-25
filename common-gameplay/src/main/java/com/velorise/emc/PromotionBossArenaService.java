@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 /** Operator/testing placement and deterministic ceremonial arenas for the Tier III-IV promotion bosses. */
 public final class PromotionBossArenaService {
@@ -17,7 +18,7 @@ public final class PromotionBossArenaService {
             source.sendFailure(Component.literal("Aetheric Bulwark arena requires The End."));
             return 0;
         }
-        BlockPos center = StructureCommandPlacement.ahead(source, 48);
+        BlockPos center = snapPlacementFloor(source.getLevel(), StructureCommandPlacement.ahead(source, 48));
         buildBulwarkArena(source.getLevel(), center);
         source.sendSuccess(() -> Component.literal("Placed Aetheric Bulwark arena at " + center.toShortString() + "."), true);
         return 1;
@@ -28,19 +29,18 @@ public final class PromotionBossArenaService {
             source.sendFailure(Component.literal("Deepbound Warden arena requires the Overworld."));
             return 0;
         }
-        BlockPos center = StructureCommandPlacement.ahead(source, 48);
+        BlockPos center = snapPlacementFloor(source.getLevel(), StructureCommandPlacement.ahead(source, 48));
         buildDeepboundArena(source.getLevel(), center);
         source.sendSuccess(() -> Component.literal("Placed Deepbound Warden arena at " + center.toShortString() + "."), true);
         return 1;
     }
-
 
     public static int summonBulwark(CommandSourceStack source) {
         if (source.getLevel().dimension() != Level.END) {
             source.sendFailure(Component.literal("Aetheric Bulwark summon requires The End."));
             return 0;
         }
-        BlockPos center = BlockPos.containing(source.getPosition());
+        BlockPos center = resolveSummonCenter(source.getLevel(), BlockPos.containing(source.getPosition()), BossArenaRegistryData.Kind.AETHERIC);
         if (!summonBulwarkBoss(source.getLevel(), center)) {
             source.sendFailure(Component.literal("Could not summon the Aetheric Bulwark."));
             return 0;
@@ -54,7 +54,7 @@ public final class PromotionBossArenaService {
             source.sendFailure(Component.literal("Deepbound Warden summon requires the Overworld."));
             return 0;
         }
-        BlockPos center = BlockPos.containing(source.getPosition());
+        BlockPos center = resolveSummonCenter(source.getLevel(), BlockPos.containing(source.getPosition()), BossArenaRegistryData.Kind.DEEPBOUND);
         if (!summonDeepboundBoss(source.getLevel(), center)) {
             source.sendFailure(Component.literal("Could not summon the Deepbound Warden."));
             return 0;
@@ -63,10 +63,44 @@ public final class PromotionBossArenaService {
         return 1;
     }
 
+    /**
+     * Resolves a safe ground or arena center for boss summons so mid-air command invocations
+     * never trap the boss in an air-lock teleport loop.
+     */
+    public static BlockPos resolveSummonCenter(ServerLevel level, BlockPos origin, BossArenaRegistryData.Kind kind) {
+        if (kind == BossArenaRegistryData.Kind.DEEPBOUND) {
+            BlockPos altar = findDeepboundAltarCenter(level, origin);
+            if (altar != null) return altar;
+        } else if (kind == BossArenaRegistryData.Kind.AETHERIC) {
+            BlockPos altar = findBulwarkAltarCenter(level, origin);
+            if (altar != null) return altar;
+        }
+        BlockPos registered = BossArenaRegistryData.get(level.getServer()).nearest(kind, origin);
+        if (registered != null && registered.distSqr(origin) <= 64.0D * 64.0D) {
+            return registered;
+        }
+        return snapPlacementFloor(level, origin);
+    }
+
+    /** Snaps an arbitrary command/summon position down to solid terrain (or ensures a solid base if over void). */
+    public static BlockPos snapPlacementFloor(ServerLevel level, BlockPos pos) {
+        int minY = level.getMinBuildHeight() + 4;
+        int maxY = level.getMaxBuildHeight() - 8;
+        BlockPos cursor = new BlockPos(pos.getX(), Math.max(minY, Math.min(maxY, pos.getY())), pos.getZ());
+        while (cursor.getY() > minY && level.getBlockState(cursor.below()).isAir()) {
+            cursor = cursor.below();
+        }
+        while (cursor.getY() < maxY && !level.getBlockState(cursor).isAir() && !level.getBlockState(cursor.above()).isAir()) {
+            cursor = cursor.above();
+        }
+        return cursor;
+    }
+
     public static void buildBulwarkArena(ServerLevel level, BlockPos center) {
         for (int x = bulwarkMinX(); x <= bulwarkMaxX(); x++) buildBulwarkColumn(level, center, x);
         for (int step = 0; step < bulwarkDecorationCount(); step++) buildBulwarkDecoration(level, center, step);
     }
+
     public static void buildDeepboundArena(ServerLevel level, BlockPos center) {
         for (int x = deepboundMinX(); x <= deepboundMaxX(); x++) buildDeepboundColumn(level, center, x);
         for (int step = 0; step < deepboundDecorationCount(); step++) buildDeepboundDecoration(level, center, step);
@@ -77,27 +111,28 @@ public final class PromotionBossArenaService {
     }
 
     public static boolean hasDeepboundArena(ServerLevel level, BlockPos center) {
-        return level.getBlockState(center.above()).is(Blocks.SCULK_SHRIEKER);
+        BlockState state = level.getBlockState(center.above());
+        return state.is(Blocks.SCULK_SHRIEKER) || state.is(VeloriseEMC.DEEPBOUND_ALTAR.get());
     }
 
     public static boolean isBulwarkAltar(BlockPos clicked, BlockPos center) {
         int dx = Math.abs(clicked.getX() - center.getX());
         int dz = Math.abs(clicked.getZ() - center.getZ());
         int dy = clicked.getY() - center.getY();
-        return dx <= 4 && dz <= 4 && dy >= 0 && dy <= 3;
+        return dx <= 5 && dz <= 5 && dy >= -1 && dy <= 4;
     }
 
     public static boolean isDeepboundAltar(BlockPos clicked, BlockPos center) {
         int dx = Math.abs(clicked.getX() - center.getX());
         int dz = Math.abs(clicked.getZ() - center.getZ());
         int dy = clicked.getY() - center.getY();
-        return dx <= 4 && dz <= 4 && dy >= -1 && dy <= 2;
+        return dx <= 5 && dz <= 5 && dy >= -2 && dy <= 3;
     }
 
     public static BlockPos findBulwarkAltarCenter(ServerLevel level, BlockPos clicked) {
-        for (int dy = -3; dy <= 1; dy++) {
-            for (int dx = -4; dx <= 4; dx++) {
-                for (int dz = -4; dz <= 4; dz++) {
+        for (int dy = -4; dy <= 2; dy++) {
+            for (int dx = -5; dx <= 5; dx++) {
+                for (int dz = -5; dz <= 5; dz++) {
                     BlockPos candidate = clicked.offset(dx, dy, dz);
                     if (hasBulwarkArena(level, candidate) && isBulwarkAltar(clicked, candidate)) {
                         return candidate;
@@ -109,9 +144,9 @@ public final class PromotionBossArenaService {
     }
 
     public static BlockPos findDeepboundAltarCenter(ServerLevel level, BlockPos clicked) {
-        for (int dy = -2; dy <= 1; dy++) {
-            for (int dx = -4; dx <= 4; dx++) {
-                for (int dz = -4; dz <= 4; dz++) {
+        for (int dy = -3; dy <= 2; dy++) {
+            for (int dx = -5; dx <= 5; dx++) {
+                for (int dz = -5; dz <= 5; dz++) {
                     BlockPos candidate = clicked.offset(dx, dy, dz);
                     if (hasDeepboundArena(level, candidate) && isDeepboundAltar(clicked, candidate)) {
                         return candidate;
@@ -128,7 +163,9 @@ public final class PromotionBossArenaService {
     }
 
     public static boolean isDeepboundAltarProtected(ServerLevel level, BlockPos pos) {
-        return level.getBlockState(pos).is(Blocks.SCULK_SHRIEKER) && hasDeepboundArena(level, pos.below());
+        BlockState state = level.getBlockState(pos);
+        return (state.is(Blocks.SCULK_SHRIEKER) || state.is(VeloriseEMC.DEEPBOUND_ALTAR.get()))
+            && hasDeepboundArena(level, pos.below());
     }
 
     public static boolean summonBulwarkBoss(ServerLevel level, BlockPos center) {
@@ -137,9 +174,18 @@ public final class PromotionBossArenaService {
             new net.minecraft.world.phys.AABB(center).inflate(96.0D), e -> e.isAlive()).isEmpty()) return false;
         AethericBulwarkEntity boss = VeloriseEMC.AETHERIC_BULWARK.get().create(level);
         if (boss == null) return false;
-        boss.bindArena(center);
-        // Place directly on top of the Aetheric Altar (which sits at center.above(2))
-        boss.moveTo(center.getX() + 0.5D, center.getY() + 3.0D, center.getZ() + 0.5D, 0.0F, 0.0F);
+        BlockPos resolved = snapPlacementFloor(level, center);
+        if (hasBulwarkArena(level, center)) {
+            boss.bindArena(center);
+            boss.moveTo(center.getX() + 0.5D, center.getY() + 3.0D, center.getZ() + 0.5D, 0.0F, 0.0F);
+        } else {
+            // Ensure solid block below if summoned in the End void
+            if (level.getBlockState(resolved.below()).isAir()) {
+                set(level, resolved.below(), Blocks.END_STONE_BRICKS.defaultBlockState());
+            }
+            boss.bindArena(resolved);
+            boss.moveTo(resolved.getX() + 0.5D, resolved.getY(), resolved.getZ() + 0.5D, 0.0F, 0.0F);
+        }
         return level.addFreshEntity(boss);
     }
 
@@ -149,8 +195,16 @@ public final class PromotionBossArenaService {
             new net.minecraft.world.phys.AABB(center).inflate(96.0D), e -> e.isAlive()).isEmpty()) return false;
         DeepboundWardenEntity boss = VeloriseEMC.DEEPBOUND_WARDEN.get().create(level);
         if (boss == null) return false;
-        boss.bindArena(center);
-        boss.moveTo(center.getX() + 0.5D, center.getY() + 2.0D, center.getZ() + 0.5D, 0.0F, 0.0F);
+        BlockPos resolved = hasDeepboundArena(level, center) ? center : snapPlacementFloor(level, center);
+        if (!hasDeepboundArena(level, resolved) && level.getBlockState(resolved.below()).isAir()) {
+            set(level, resolved.below(), Blocks.DEEPSLATE_BRICKS.defaultBlockState());
+        }
+        boss.bindArena(resolved);
+        Vec3 spawnPos = hasDeepboundArena(level, resolved)
+            ? boss.findSafeArenaHome(level)
+            : boss.snapToWalkableFloor(level, new Vec3(resolved.getX() + 0.5D, resolved.getY() + 1.0D, resolved.getZ() + 0.5D));
+        boss.moveTo(spawnPos.x, spawnPos.y, spawnPos.z, 0.0F, 0.0F);
+        boss.beginSummonEmerge();
         return level.addFreshEntity(boss);
     }
 
@@ -632,7 +686,8 @@ public final class PromotionBossArenaService {
             int edge = Math.max(Math.abs(x), Math.abs(z));
             if (edge <= 2) set(level, center.offset(x, 0, z), edge == 2 ? frame : sculk);
         }
-        set(level, center.above(1), Blocks.SCULK_SHRIEKER.defaultBlockState().setValue(net.minecraft.world.level.block.SculkShriekerBlock.CAN_SUMMON, true));
+        // Keep CAN_SUMMON false on the central altar Shrieker so player footsteps never spawn a random vanilla Warden during the boss fight!
+        set(level, center.above(1), Blocks.SCULK_SHRIEKER.defaultBlockState().setValue(net.minecraft.world.level.block.SculkShriekerBlock.CAN_SUMMON, false));
 
         for (int[] side : new int[][] {{3,0},{-3,0},{0,3},{0,-3}}) {
             set(level, center.offset(side[0], 0, side[1]), catalyst);
