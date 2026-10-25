@@ -2,8 +2,8 @@ package com.velorise.emc;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -11,11 +11,9 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.monster.EnderMan;
-import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -31,6 +29,10 @@ public final class ArcaneMobEvents {
     /** Called after World Tier modifiers are applied. Existing modded equipment is never replaced. */
     public static void tryAssignArcaneAbility(LivingEntity living, int tier) {
         if (!(living instanceof Mob mob) || tier < 2 || living.getMaxHealth() >= 200.0F || !mob.getMainHandItem().isEmpty()) return;
+        if (living instanceof InfernalCrucibleEntity || living instanceof AethericBulwarkEntity
+            || living instanceof DeepboundWardenEntity || living instanceof EchoboundDragonEntity
+            || living.getTags().contains(InfernalCrucibleEntity.MINION_TAG)
+            || living.getTags().contains(AethericBulwarkEntity.MINION_TAG)) return;
         if (mob.getPersistentData().contains(ARCANE_TYPE) || mob instanceof EnderMan || mob instanceof FlyingMob) return;
         double chance = com.velorise.emc.common.GameplayConfig.current().world.mobThreatScaling.arcaneMobChanceByTier[Math.min(4, tier)];
         if (mob.getRandom().nextDouble() >= chance) return;

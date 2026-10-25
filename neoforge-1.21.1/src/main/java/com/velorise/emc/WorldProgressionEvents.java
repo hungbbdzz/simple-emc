@@ -1,14 +1,13 @@
 package com.velorise.emc;
 
+import com.velorise.emc.common.LastEchoProfile;
 import com.velorise.emc.common.WorldProgressionObjective;
 import com.velorise.emc.common.WorldProgressionState;
 import com.velorise.emc.common.WorldTierStage;
-import com.velorise.emc.common.LastEchoProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
@@ -29,9 +28,9 @@ import net.minecraft.world.entity.monster.Spider;
 import net.minecraft.world.entity.monster.Witch;
 import net.minecraft.world.entity.monster.WitherSkeleton;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.monster.ZombifiedPiglin;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.entity.monster.piglin.PiglinBrute;
-import net.minecraft.world.entity.monster.ZombifiedPiglin;
 import net.minecraft.world.entity.monster.warden.Warden;
 import net.minecraft.world.level.Level;
 
@@ -77,6 +76,10 @@ public final class WorldProgressionEvents {
     }
 
     private static WorldProgressionObjective[] objectivesFor(LivingEntity defeated, WorldTierStage stage) {
+        if (defeated.getTags().contains(InfernalCrucibleEntity.MINION_TAG)
+            || defeated.getTags().contains(AethericBulwarkEntity.MINION_TAG)) {
+            return new WorldProgressionObjective[0];
+        }
         List<WorldProgressionObjective> result = new ArrayList<>(3);
         Level level = defeated.level();
 

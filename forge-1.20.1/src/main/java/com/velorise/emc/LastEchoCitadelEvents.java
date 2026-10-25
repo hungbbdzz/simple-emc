@@ -32,6 +32,7 @@ public final class LastEchoCitadelEvents {
     public static void onArenaBlockBreak(BlockEvent.BreakEvent event) {
         if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel level
             && (LastEchoCitadelService.isArenaProtected(level, event.getPos())
+                || PromotionBossArenaService.isBulwarkAltarProtected(level, event.getPos())
                 || PromotionBossArenaService.isDeepboundAltarProtected(level, event.getPos())
                 || InfernalCrucibleArenaService.isInfernalAltarProtected(level, event.getPos()))) {
             event.setCanceled(true);
@@ -44,6 +45,7 @@ public final class LastEchoCitadelEvents {
         // Preserve entity damage and knockback; only protected arena blocks are
         // removed from the explosion's destruction list.
         event.getAffectedBlocks().removeIf(pos -> LastEchoCitadelService.isArenaProtected(level, pos)
+            || PromotionBossArenaService.isBulwarkAltarProtected(level, pos)
             || PromotionBossArenaService.isDeepboundAltarProtected(level, pos)
             || InfernalCrucibleArenaService.isInfernalAltarProtected(level, pos));
     }

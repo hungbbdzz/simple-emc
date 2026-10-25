@@ -6,14 +6,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 
 /** Deterministic, player-proximity-triggered citadel builder. Never replaces non-air blocks. */
@@ -25,7 +23,7 @@ public final class LastEchoCitadelService {
 
     private LastEchoCitadelService() {}
 
-    /** True only for the End arena volume while its boss fight is active. */
+    /** True only for the End arena volume while its boss fight is active, plus the permanent central altar. */
     public static boolean isArenaProtected(ServerLevel level, BlockPos pos) {
         if (!level.dimension().equals(Level.END)) return false;
         LastEchoCitadelData data = LastEchoCitadelData.get(level.getServer());
@@ -34,10 +32,10 @@ public final class LastEchoCitadelService {
         int fountainDx = Math.abs(pos.getX() - center.getX());
         int fountainDz = Math.abs(pos.getZ() - center.getZ());
         int fountainDy = pos.getY() - center.getY();
-        // The altar must survive between encounters so another Eye can always
+        // The altar (Y + 1..3) must survive between encounters so another Eye can always
         // reactivate it. This compact volume is permanent and needs no Bedrock.
         if (fountainDx <= 2 && fountainDz <= 2
-            && fountainDy >= 1 && fountainDy <= 2) return true;
+            && fountainDy >= 1 && fountainDy <= 3) return true;
         if (!data.bossActive() || data.defeated()) return false;
         int dy = pos.getY() - center.getY();
         if (dy < -LastEchoProfile.ARENA_PROTECTION_BELOW
@@ -82,10 +80,14 @@ public final class LastEchoCitadelService {
         }
         // Once built, routine boss/fountain checks do not need to run every tick.
         if ((server.getTickCount() & 3) != 0) return;
-        ensureRespawnFountain(end, center);
         if (data.defeated()) {
+            // Preserve the Exit Portal and Dragon Egg after victory while keeping the central altar intact.
+            if (!end.getBlockState(center.above(3)).is(VeloriseEMC.LAST_ECHO_ALTAR.get())) {
+                end.setBlock(center.above(3), VeloriseEMC.LAST_ECHO_ALTAR.get().defaultBlockState(), 3);
+            }
             return;
         }
+        ensureRespawnFountain(end, center);
         AABB arenaBox = new AABB(center).inflate(LastEchoProfile.ACTIVATION_RADIUS, 72.0D, LastEchoProfile.ACTIVATION_RADIUS);
         boolean bossPresent = !end.getEntitiesOfClass(EchoboundDragonEntity.class, arenaBox).isEmpty();
         if (data.bossActive() && !bossPresent && server.getTickCount() % 200 == 0) data.setBossActive(false);
@@ -242,7 +244,6 @@ public final class LastEchoCitadelService {
                 }
             }
 
-
             // --- 3b. Suspended Brace Bands across the middle body to avoid isolated shafts ---
             if (radial >= 3 && radial <= 5) {
                 for (int y : new int[] {17, 24}) {
@@ -275,13 +276,11 @@ public final class LastEchoCitadelService {
             }
 
             // --- 5. DRAGON CLAW HAND HOLDING THE CRYSTAL (Y = 31..33) ---
-            // 4 Curved Dragon Claw Fingers at the wide corners of the palm (lx == 2, lz == 2)
             if (lx == 2 && lz == 2) {
                 placeAirOnly(level, center.offset(dx, 31, dz), Blocks.CRYING_OBSIDIAN.defaultBlockState());
                 placeAirOnly(level, center.offset(dx, 32, dz), Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
                 placeAirOnly(level, center.offset(dx, 33, dz), Blocks.CHISELED_POLISHED_BLACKSTONE.defaultBlockState());
             }
-            // Edge braces and crown sockets make the crystal hand feel connected rather than floating.
             if (radial == 2 && (lx == 0 || lz == 0)) {
                 placeAirOnly(level, center.offset(dx, 30, dz), Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
                 placeAirOnly(level, center.offset(dx, 31, dz), Blocks.GILDED_BLACKSTONE.defaultBlockState());
@@ -294,7 +293,7 @@ public final class LastEchoCitadelService {
             return;
         }
 
-        // 4 Medium Side Pillars placed diagonally at (+/-25, +/-25) - radius 35.35, 45 degrees between major spires!
+        // 4 Medium Side Pillars placed diagonally at (+/-25, +/-25)
         boolean diagonal = Math.abs(Math.abs(dx) - 25) <= 3 && Math.abs(Math.abs(dz) - 25) <= 3;
         if (diagonal) {
             int cx = Integer.signum(dx) * 25;
@@ -302,7 +301,6 @@ public final class LastEchoCitadelService {
             int lx = Math.abs(dx - cx), lz = Math.abs(dz - cz), r = Math.max(lx, lz);
             int manhattan = lx + lz;
 
-            // Plinth Base & Outer Buttress Legs & Bottom Connecting Ring Arches (Y = 1..8 at r = 3)
             if (r == 3 && (lx == 0 || lz == 0 || lx == lz)) {
                 placeAirOnly(level, center.offset(dx, 1, dz), Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
                 for (int y = 2; y <= 6; y++) {
@@ -315,7 +313,6 @@ public final class LastEchoCitadelService {
                 placeAirOnly(level, center.offset(dx, 4, dz), Blocks.CRYING_OBSIDIAN.defaultBlockState());
             }
 
-            // Interlocked lower ring around the medium diagonal pillars.
             if (r >= 1 && r <= 3) {
                 for (int y : new int[] {5, 9}) {
                     if (r == 3 && (lx == 0 || lz == 0 || lx == lz)) {
@@ -365,13 +362,11 @@ public final class LastEchoCitadelService {
                         placeAirOnly(level, center.offset(dx, 16, dz), Blocks.CRYING_OBSIDIAN.defaultBlockState());
                     }
 
-                    // Flared 3x3 Hand Chalice Top & Bedrock Cap (Y = 16..18)
                     if (lx == 0 && lz == 0) {
                         placeAirOnly(level, center.offset(dx, 16, dz), Blocks.GILDED_BLACKSTONE.defaultBlockState());
                         placeAirOnly(level, center.offset(dx, 17, dz), Blocks.BEDROCK.defaultBlockState());
                     }
 
-                    // 4 Claw Fingers & Soul Lanterns on the wide corners of the top platform (Y = 17..18)
                     if (lx == 1 && lz == 1) {
                         placeAirOnly(level, center.offset(dx, 17, dz), Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
                         placeAirOnly(level, center.offset(dx, 18, dz), Blocks.SOUL_LANTERN.defaultBlockState());
@@ -381,9 +376,6 @@ public final class LastEchoCitadelService {
             return;
         }
 
-        // Offset the smaller interior pillars so they sit between the major spires instead of directly
-        // behind them from the player view. This keeps the arena silhouette cleaner and prevents small
-        // pillars from visually overlapping the large connected pillars.
         for (int i = 0; i < 16; i++) {
             double angle = (i + 0.5D) * (Math.PI / 8.0D);
             int radius = (i & 1) == 0 ? 23 : 29;
@@ -457,7 +449,8 @@ public final class LastEchoCitadelService {
     }
 
     private static void ensureRespawnFountain(ServerLevel level, BlockPos center) {
-        if (!level.getBlockState(center.above(6)).is(VeloriseEMC.LAST_ECHO_ALTAR.get())) {
+        // The central altar summit is placed at center.above(3) by buildRespawnFountain.
+        if (!level.getBlockState(center.above(3)).is(VeloriseEMC.LAST_ECHO_ALTAR.get())) {
             buildRespawnFountain(level, center);
         }
     }
@@ -509,11 +502,12 @@ public final class LastEchoCitadelService {
         LastEchoCitadelData data = LastEchoCitadelData.get(level.getServer());
         BlockPos center = data.center();
         if (center == null || !data.built() || !Level.END.equals(level.dimension())) return false;
-        if (!level.getBlockState(clicked).is(VeloriseEMC.LAST_ECHO_ALTAR.get())) return false;
         int dx = Math.abs(clicked.getX() - center.getX());
         int dz = Math.abs(clicked.getZ() - center.getZ());
         int dy = clicked.getY() - center.getY();
-        if (dx > 5 || dz > 5 || dy < 1 || dy > 5) return false;
+        if (dx > 5 || dz > 5 || dy < 0 || dy > 5) return false;
+        if (!level.getBlockState(clicked).is(VeloriseEMC.LAST_ECHO_ALTAR.get())
+            && !(dx <= 2 && dz <= 2 && dy >= 1 && dy <= 4)) return false;
 
         if (data.bossActive() || ArenaSummonService.isPending(level.dimension(), center, ArenaSummonService.BossKind.LAST_ECHO)) {
             player.displayClientMessage(Component.translatable(
@@ -521,7 +515,7 @@ public final class LastEchoCitadelService {
             return true;
         }
 
-        ensureRespawnFountain(level, center);
+        buildRespawnFountain(level, center);
         data.resetAt(center);
         data.markBuilt();
         if (!ArenaSummonService.start(level, center, ArenaSummonService.BossKind.LAST_ECHO)) return true;
@@ -548,15 +542,13 @@ public final class LastEchoCitadelService {
         }
         buildRespawnFountain(level, center);
         data.markBuilt();
-        // The placement command is intentionally structure-only. summon_boss is a separate
-        // explicit action, so the operator standing in the arena does not trigger it next tick.
         data.markDefeated();
         return changed;
     }
 
     public static boolean summonExisting(ServerLevel level, BlockPos center) {
         LastEchoCitadelData data = LastEchoCitadelData.get(level.getServer());
-        if (!level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(center).inflate(8.0D, 48.0D, 8.0D)).isEmpty()) return false;
+        if (!level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(center).inflate(64.0D, 48.0D, 64.0D), e -> e.isAlive()).isEmpty()) return false;
         spawnBoss(level, data, center);
         return true;
     }
@@ -567,7 +559,7 @@ public final class LastEchoCitadelService {
         buildRespawnFountain(level, center);
         data.markBuilt();
         summonExisting(level, center);
-        return level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(center).inflate(8.0D, 48.0D, 8.0D))
+        return level.getEntitiesOfClass(EchoboundDragonEntity.class, new AABB(center).inflate(64.0D, 48.0D, 64.0D), e -> e.isAlive())
             .stream().findFirst().orElse(null);
     }
 

@@ -1,5 +1,7 @@
 package com.velorise.emc;
 
+import com.velorise.emc.common.GameplayConfig;
+import com.velorise.emc.common.ThreatScalingProfile;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
@@ -11,6 +13,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -35,10 +39,17 @@ public final class DeepboundWardenEntity extends Warden {
         BossEvent.BossBarColor.BLUE, BossEvent.BossBarOverlay.NOTCHED_10);
 
     private static final double ARENA_RADIUS = 34.0D;
+    private static final double FINAL_SCREAM_RADIUS = 21.0D;
     private static final int INACTIVITY_BEFORE_DESPAWN = 20 * 30;
     private static final int DIG_ANIMATION_DURATION = 100;
     private static final double MELEE_RANGE_SQR = 4.25D * 4.25D;
+    private static final float BASE_ENCOUNTER_HEALTH = 3_600.0F;
+    /** Vanilla clamps MAX_HEALTH to 1024, so damage is resolved against a 1000-HP physical segment. */
+    private static final float PHYSICAL_HEALTH_SEGMENT = 1_000.0F;
 
+    private boolean initializedHealth;
+    private float encounterHealth = BASE_ENCOUNTER_HEALTH;
+    private float encounterMaxHealth = BASE_ENCOUNTER_HEALTH;
     private int phase = 1;
     private int lastPhase = 1;
     private int skillCooldown = 70;
@@ -54,6 +65,7 @@ public final class DeepboundWardenEntity extends Warden {
     private UUID skillTargetId;
     private Vec3 skillAim = Vec3.ZERO;
     private Skill pendingSkill = Skill.NONE;
+    private Skill lastExecutedSkill = Skill.NONE;
 
     private enum Skill {
         NONE(""),
@@ -94,6 +106,16 @@ public final class DeepboundWardenEntity extends Warden {
             .add(Attributes.FOLLOW_RANGE, 72.0D);
     }
 
+    @Override public boolean removeWhenFarAway(double distance) { return false; }
+    @Override protected boolean shouldDespawnInPeaceful() { return false; }
+
+    @Override
+    protected void customServerAiStep() {
+        // Suppress Vanilla Warden Brain (which otherwise fires duplicate untelegraphed sonic booms,
+        // overrides navigation paths during skill charges, and triggers calm-state digging).
+        // Navigation and look control are ticked directly by Mob.serverAiStep().
+    }
+
     @Override
     public void startSeenByPlayer(ServerPlayer player) {
         super.startSeenByPlayer(player);
@@ -110,21 +132,20 @@ public final class DeepboundWardenEntity extends Warden {
     public void tick() {
         super.tick();
         if (level().isClientSide) return;
+        if (!(level() instanceof ServerLevel serverLevel)) return;
 
+        ensureHealthInitialized(serverLevel);
         updateInactivityDespawn();
         if (isRemoved() || allowedToDespawn || despawnAnimationTicks > 0) return;
 
-        // Vanilla Wardens may attempt their calm-state dig routine. This boss only digs
-        // during the explicit inactivity despawn sequence.
         if (getPose() == Pose.DIGGING || getPose() == Pose.EMERGING) {
             setPose(Pose.STANDING);
         }
 
-        enforceArena(level());
+        enforceArena(serverLevel);
         updatePhase();
         updateBossBarPresentation();
 
-        if (!(level() instanceof ServerLevel serverLevel)) return;
         ServerPlayer target = findCombatTarget(serverLevel);
         if (target == null) {
             clearCombatState();
@@ -133,6 +154,7 @@ public final class DeepboundWardenEntity extends Warden {
 
         setTarget(target);
         setAggressive(true);
+        increaseAngerAt(target, 150, false);
         getLookControl().setLookAt(target, 180.0F, 180.0F);
 
         if (engagedTargetId == null || !engagedTargetId.equals(target.getUUID())) {
@@ -156,15 +178,44 @@ public final class DeepboundWardenEntity extends Warden {
 
         if (skillCooldown > 0) {
             skillCooldown--;
-        } else if (distanceToSqr(target) > MELEE_RANGE_SQR || phase >= 3) {
+        } else if (distanceToSqr(target) > MELEE_RANGE_SQR || phase >= 2) {
             beginRandomSkill(serverLevel, target);
         }
     }
 
+    private void ensureHealthInitialized(ServerLevel serverLevel) {
+        if (!initializedHealth) {
+            float bonus = 0.0F;
+            GameplayConfig.BossPlayerScaling cfg = GameplayConfig.current().world.bossPlayerScaling;
+            if (cfg.enabled && cfg.warden && serverLevel.getServer() != null) {
+                int online = 0;
+                for (ServerPlayer player : serverLevel.getServer().getPlayerList().getPlayers()) {
+                    if (!player.isCreative() && !player.isSpectator()) online++;
+                }
+                int counted = ThreatScalingProfile.clampPlayerCount(online);
+                if (counted > 0) {
+                    bonus = (float) ThreatScalingProfile.bossBonusHealth(counted);
+                }
+            }
+            encounterMaxHealth = BASE_ENCOUNTER_HEALTH + bonus;
+            encounterHealth = encounterMaxHealth;
+            if (getAttribute(Attributes.MAX_HEALTH) != null) {
+                getAttribute(Attributes.MAX_HEALTH).setBaseValue(PHYSICAL_HEALTH_SEGMENT);
+            }
+            setHealth(PHYSICAL_HEALTH_SEGMENT);
+            initializedHealth = true;
+        }
+    }
+
+    private float healthRatio() {
+        return encounterMaxHealth <= 0.0F ? 0.0F : Mth.clamp(encounterHealth / encounterMaxHealth, 0.0F, 1.0F);
+    }
+
     private void updatePhase() {
-        phase = getHealth() > getMaxHealth() * 0.75F ? 1
-            : getHealth() > getMaxHealth() * 0.50F ? 2
-            : getHealth() > getMaxHealth() * 0.25F ? 3 : 4;
+        float ratio = healthRatio();
+        phase = ratio > 0.75F ? 1
+            : ratio > 0.50F ? 2
+            : ratio > 0.25F ? 3 : 4;
         if (phase <= lastPhase) return;
 
         lastPhase = phase;
@@ -186,7 +237,7 @@ public final class DeepboundWardenEntity extends Warden {
     }
 
     private void updateBossBarPresentation() {
-        bossBar.setProgress(Math.max(0.0F, Math.min(1.0F, getHealth() / getMaxHealth())));
+        bossBar.setProgress(healthRatio());
         bossBar.setColor(switch (phase) {
             case 2 -> BossEvent.BossBarColor.PURPLE;
             case 3 -> BossEvent.BossBarColor.RED;
@@ -304,19 +355,30 @@ public final class DeepboundWardenEntity extends Warden {
     }
 
     private void beginRandomSkill(ServerLevel serverLevel, ServerPlayer target) {
-        int choice = random.nextInt(phase + 2);
-        Skill skill = choice == 0 ? Skill.SONIC_CONE
-            : choice == 1 ? Skill.RESONANCE_LINE
-            : choice == 2 ? Skill.SCULK_ERUPTION
-            : choice == 3 ? Skill.ECHO_GRAB
-            : choice == 4 ? Skill.SILENT_STEP
-            : Skill.FINAL_SCREAM;
+        int poolSize = phase + 2;
+        int choice = random.nextInt(poolSize);
+        Skill skill = skillFromChoice(choice);
+        if (skill == lastExecutedSkill && poolSize > 1) {
+            skill = skillFromChoice((choice + 1 + random.nextInt(poolSize - 1)) % poolSize);
+        }
         if (skill == Skill.FINAL_SCREAM && phase < 4) skill = Skill.SONIC_CONE;
         beginSkill(serverLevel, target, skill);
     }
 
+    private Skill skillFromChoice(int choice) {
+        return switch (choice) {
+            case 0 -> Skill.SONIC_CONE;
+            case 1 -> Skill.RESONANCE_LINE;
+            case 2 -> Skill.SCULK_ERUPTION;
+            case 3 -> Skill.ECHO_GRAB;
+            case 4 -> Skill.SILENT_STEP;
+            default -> Skill.FINAL_SCREAM;
+        };
+    }
+
     private void beginSkill(ServerLevel serverLevel, ServerPlayer target, Skill skill) {
         pendingSkill = skill;
+        lastExecutedSkill = skill;
         skillTargetId = target.getUUID();
         skillAim = target.position();
         skillChargeTotal = switch (skill) {
@@ -396,10 +458,10 @@ public final class DeepboundWardenEntity extends Warden {
                 if (elapsed % 3 == 0) {
                     Vec3 direction = horizontalDirection(origin, skillAim);
                     particleRay(serverLevel, origin, direction, 28.0D, ParticleTypes.SCULK_SOUL, 18);
-                    particleRay(serverLevel, origin, rotateY(direction, Math.toRadians(28.0D)),
-                        24.0D, ParticleTypes.SCULK_SOUL, 14);
-                    particleRay(serverLevel, origin, rotateY(direction, Math.toRadians(-28.0D)),
-                        24.0D, ParticleTypes.SCULK_SOUL, 14);
+                    particleRay(serverLevel, origin, rotateY(direction, Math.toRadians(36.0D)),
+                        26.0D, ParticleTypes.SCULK_SOUL, 14);
+                    particleRay(serverLevel, origin, rotateY(direction, Math.toRadians(-36.0D)),
+                        26.0D, ParticleTypes.SCULK_SOUL, 14);
                 }
             }
             case RESONANCE_LINE -> {
@@ -432,10 +494,12 @@ public final class DeepboundWardenEntity extends Warden {
                 }
             }
             case FINAL_SCREAM -> {
-                double radius = 2.0D + elapsed * 0.34D;
+                double radius = 2.0D + (FINAL_SCREAM_RADIUS - 2.0D) * (elapsed / (double) Math.max(1, skillChargeTotal));
                 if (elapsed % 3 == 0) {
                     ringParticles(serverLevel, position().add(0.0D, 0.15D, 0.0D), radius,
                         32, ParticleTypes.SCULK_SOUL);
+                    ringParticles(serverLevel, position().add(0.0D, 0.15D, 0.0D), FINAL_SCREAM_RADIUS,
+                        36, ParticleTypes.SOUL_FIRE_FLAME);
                 }
                 if (elapsed % 14 == 0) {
                     serverLevel.playSound(null, blockPosition(), SoundEvents.WARDEN_HEARTBEAT,
@@ -543,23 +607,49 @@ public final class DeepboundWardenEntity extends Warden {
 
     private void silentStep(ServerLevel serverLevel, ServerPlayer target) {
         Vec3 before = position();
-        Vec3 look = target.getLookAngle();
-        Vec3 horizontalLook = new Vec3(look.x, 0.0D, look.z);
-        if (horizontalLook.lengthSqr() < 0.0001D) horizontalLook = new Vec3(0.0D, 0.0D, 1.0D);
-        horizontalLook = horizontalLook.normalize();
-        double destinationX = target.getX() - horizontalLook.x * 4.0D;
-        double destinationZ = target.getZ() - horizontalLook.z * 4.0D;
+        Vec3 safeDest = findSafeSilentStepDestination(serverLevel, target);
         serverLevel.playSound(null, blockPosition(), SoundEvents.WARDEN_DIG,
             SoundSource.HOSTILE, 2.5F, 0.72F);
         serverLevel.sendParticles(ParticleTypes.REVERSE_PORTAL,
             before.x, before.y + 1.0D, before.z, 80, 1.0D, 1.2D, 1.0D, 0.08D);
-        teleportTo(destinationX, target.getY(), destinationZ);
+        teleportTo(safeDest.x, safeDest.y, safeDest.z);
         getLookControl().setLookAt(target, 180.0F, 180.0F);
         serverLevel.sendParticles(ParticleTypes.SCULK_SOUL,
             getX(), getY() + 1.0D, getZ(), 100, 1.2D, 1.2D, 1.2D, 0.12D);
         serverLevel.playSound(null, blockPosition(), SoundEvents.WARDEN_EMERGE,
             SoundSource.HOSTILE, 3.0F, 0.62F);
         meleeCooldown = Math.min(meleeCooldown, 7);
+    }
+
+    private Vec3 findSafeSilentStepDestination(ServerLevel level, ServerPlayer target) {
+        Vec3 look = target.getLookAngle();
+        Vec3 horizontalLook = new Vec3(look.x, 0.0D, look.z);
+        if (horizontalLook.lengthSqr() < 0.0001D) horizontalLook = new Vec3(0.0D, 0.0D, 1.0D);
+        horizontalLook = horizontalLook.normalize();
+        Vec3 behind = horizontalLook.scale(-1.0D);
+
+        double[] angleOffsetsDeg = {0.0D, 45.0D, -45.0D, 90.0D, -90.0D, 135.0D, -135.0D, 180.0D};
+        double[] distances = {4.0D, 3.0D};
+        for (double dist : distances) {
+            for (double deg : angleOffsetsDeg) {
+                Vec3 offset = rotateY(behind, Math.toRadians(deg)).scale(dist);
+                double cx = target.getX() + offset.x;
+                double cz = target.getZ() + offset.z;
+                if (!insideArena(new Vec3(cx, target.getY(), cz), ARENA_RADIUS - 2.5D)) continue;
+
+                int baseY = Mth.floor(target.getY());
+                for (int dy = 1; dy >= -2; dy--) {
+                    BlockPos feet = BlockPos.containing(cx, baseY + dy, cz);
+                    if (level.getBlockState(feet.below()).isAir()) continue;
+                    Vec3 candidate = new Vec3(cx, feet.getY(), cz);
+                    AABB movedBox = getBoundingBox().move(candidate.subtract(position()));
+                    if (level.noCollision(this, movedBox)) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return insideArena(target.position(), ARENA_RADIUS - 2.0D) ? target.position() : position();
     }
 
     private void finalScream(ServerLevel serverLevel) {
@@ -570,14 +660,19 @@ public final class DeepboundWardenEntity extends Warden {
             SoundSource.HOSTILE, 4.0F, 0.52F);
         serverLevel.sendParticles(ParticleTypes.SONIC_BOOM,
             getX(), getY() + 2.0D, getZ(), 10, 7.0D, 2.0D, 7.0D, 0.0D);
-        for (int radius = 4; radius <= 28; radius += 4) {
+        for (int radius = 4; radius <= (int) FINAL_SCREAM_RADIUS; radius += 4) {
             ringParticles(serverLevel, position().add(0.0D, 0.2D, 0.0D),
                 radius, 40, ParticleTypes.SCULK_SOUL);
         }
+        double maxDistSqr = FINAL_SCREAM_RADIUS * FINAL_SCREAM_RADIUS;
         for (ServerPlayer player : serverLevel.getEntitiesOfClass(ServerPlayer.class,
-            new AABB(blockPosition()).inflate(28.0D), this::isValidArenaTarget)) {
-            player.hurt(serverLevel.damageSources().sonicBoom(this), 32.0F);
-            player.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 140, 0));
+            getBoundingBox().inflate(FINAL_SCREAM_RADIUS + 2.0D, 6.0D, FINAL_SCREAM_RADIUS + 2.0D), this::isValidArenaTarget)) {
+            double dx = player.getX() - getX();
+            double dz = player.getZ() - getZ();
+            if (dx * dx + dz * dz <= maxDistSqr) {
+                player.hurt(serverLevel.damageSources().sonicBoom(this), 32.0F);
+                player.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 140, 0));
+            }
         }
     }
 
@@ -704,7 +799,7 @@ public final class DeepboundWardenEntity extends Warden {
 
     private void enforceArena(Level level) {
         if (arena.equals(BlockPos.ZERO)) return;
-        if (!insideArena(position(), ARENA_RADIUS + 4.0D)) {
+        if (!insideArena(position(), ARENA_RADIUS + 4.0D) || getY() < arena.getY() - 4.0D) {
             teleportTo(arena.getX() + 0.5D, arena.getY() + 1.0D, arena.getZ() + 0.5D);
             getNavigation().stop();
             setTarget(null);
@@ -724,7 +819,7 @@ public final class DeepboundWardenEntity extends Warden {
                 && insideArena(player.position(), ARENA_RADIUS)) != null;
         if (!playerInside && tickCount % 80 == 0) {
             double angle = random.nextDouble() * Math.PI * 2.0D;
-            double radius = 5.0D + random.nextDouble() * 20.0D;
+            double radius = 5.0D + random.nextDouble() * 18.0D;
             getNavigation().moveTo(arena.getX() + 0.5D + Math.cos(angle) * radius,
                 arena.getY() + 1.0D,
                 arena.getZ() + 0.5D + Math.sin(angle) * radius,
@@ -746,16 +841,43 @@ public final class DeepboundWardenEntity extends Warden {
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        if (source.getEntity() instanceof Player player
+        if (!(level() instanceof ServerLevel serverLevel)) return super.hurt(source, amount);
+        boolean bypasses = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
+        if (!bypasses && source.getEntity() instanceof Player player
             && !insideArena(player.position(), ARENA_RADIUS)) return false;
+
+        ensureHealthInitialized(serverLevel);
         inactiveTicks = 0;
         despawnAnimationTicks = 0;
         allowedToDespawn = false;
-        if (!level().isClientSide && source.getEntity() != null) {
+
+        if (bypasses && amount >= encounterHealth) {
+            encounterHealth = 0.0F;
+            setHealth(0.0F);
+            die(source);
+            return true;
+        }
+
+        setHealth(PHYSICAL_HEALTH_SEGMENT);
+        boolean accepted = super.hurt(source, Math.min(Math.max(0.0F, amount), PHYSICAL_HEALTH_SEGMENT - 1.0F));
+        if (!accepted) return false;
+
+        if (source.getEntity() != null) {
             level().playSound(null, blockPosition(), SoundEvents.WARDEN_HURT,
                 SoundSource.HOSTILE, 2.5F, 0.75F);
         }
-        return super.hurt(source, amount);
+
+        float dealt = isDeadOrDying() ? amount : Math.max(0.0F, PHYSICAL_HEALTH_SEGMENT - getHealth());
+        encounterHealth = Math.max(0.0F, encounterHealth - dealt);
+        if (encounterHealth <= 0.0F) {
+            if (!isDeadOrDying()) {
+                setHealth(0.0F);
+                die(source);
+            }
+        } else {
+            setHealth(PHYSICAL_HEALTH_SEGMENT);
+        }
+        return true;
     }
 
     @Override
@@ -775,6 +897,10 @@ public final class DeepboundWardenEntity extends Warden {
         tag.putLong("Arena", arena.asLong());
         tag.putInt("InactiveTicks", inactiveTicks);
         tag.putInt("DespawnAnimationTicks", despawnAnimationTicks);
+        tag.putBoolean("InitializedHealth", initializedHealth);
+        tag.putFloat("EncounterHealth", encounterHealth);
+        tag.putFloat("EncounterMaxHealth", encounterMaxHealth);
+        tag.putInt("LastPhase", lastPhase);
     }
 
     @Override
@@ -783,6 +909,15 @@ public final class DeepboundWardenEntity extends Warden {
         if (tag.contains("Arena")) arena = BlockPos.of(tag.getLong("Arena"));
         inactiveTicks = tag.getInt("InactiveTicks");
         despawnAnimationTicks = tag.getInt("DespawnAnimationTicks");
+        initializedHealth = tag.getBoolean("InitializedHealth");
+        if (tag.contains("EncounterHealth")) encounterHealth = tag.getFloat("EncounterHealth");
+        if (tag.contains("EncounterMaxHealth")) encounterMaxHealth = tag.getFloat("EncounterMaxHealth");
+        if (tag.contains("LastPhase")) lastPhase = tag.getInt("LastPhase");
+        if (initializedHealth && encounterMaxHealth > 0.0F && encounterHealth > 0.0F) {
+            setHealth(PHYSICAL_HEALTH_SEGMENT);
+        } else {
+            initializedHealth = false;
+        }
         allowedToDespawn = false;
         cancelSkill();
         engagedTargetId = null;

@@ -21,7 +21,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.EyeOfEnder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
@@ -44,18 +43,14 @@ public final class PromotionBossEyeItem extends Item {
     public InteractionResult useOn(UseOnContext context) {
         Level level = context.getLevel();
         if (level.isClientSide()) return InteractionResult.SUCCESS;
-        if (!(context.getPlayer() instanceof ServerPlayer sp)) return InteractionResult.PASS;
+        if (!(context.getPlayer() instanceof ServerPlayer sp) || !correctDimension(level)) return InteractionResult.PASS;
 
+        ServerLevel serverLevel = (ServerLevel) level;
         BlockPos clicked = context.getClickedPos();
-        boolean clickedCorrectAltar = kind == Kind.AETHERIC_BULWARK
-            ? level.getBlockState(clicked).is(VeloriseEMC.AETHERIC_ALTAR.get())
-            : level.getBlockState(clicked).is(net.minecraft.world.level.block.Blocks.SCULK_SHRIEKER);
-        if (!clickedCorrectAltar) return InteractionResult.PASS;
-        BlockPos center = kind == Kind.AETHERIC_BULWARK ? clicked.below(2) : clicked.below();
-        boolean validAltar = kind == Kind.AETHERIC_BULWARK
-            ? PromotionBossArenaService.hasBulwarkArena((ServerLevel) level, center)
-            : PromotionBossArenaService.hasDeepboundArena((ServerLevel) level, center);
-        if (!validAltar) return InteractionResult.PASS;
+        BlockPos center = kind == Kind.AETHERIC_BULWARK
+            ? PromotionBossArenaService.findBulwarkAltarCenter(serverLevel, clicked)
+            : PromotionBossArenaService.findDeepboundAltarCenter(serverLevel, clicked);
+        if (center == null) return InteractionResult.PASS;
 
         if (!sp.getAbilities().instabuild) {
             WorldProgressionState state = WorldProgressionData.get(sp.server).snapshot();
@@ -71,7 +66,7 @@ public final class PromotionBossEyeItem extends Item {
 
         ArenaSummonService.BossKind bossKind = kind == Kind.AETHERIC_BULWARK
             ? ArenaSummonService.BossKind.AETHERIC_BULWARK : ArenaSummonService.BossKind.DEEPBOUND_WARDEN;
-        if (!ArenaSummonService.start((ServerLevel) level, center, bossKind)) {
+        if (!ArenaSummonService.start(serverLevel, center, bossKind)) {
             sp.displayClientMessage(Component.literal("The altar is already channeling power or the boss is already present."), true);
             return InteractionResult.FAIL;
         }
@@ -171,34 +166,6 @@ public final class PromotionBossEyeItem extends Item {
         long dist = Math.round(Math.sqrt(delta.x * delta.x + delta.z * delta.z));
         String name = kind == Kind.AETHERIC_BULWARK ? "Aetheric Bulwark Arena" : "Deepbound Warden Arena";
         sp.displayClientMessage(Component.literal("The eye points toward the " + name + " (" + dist + " blocks away)."), true);
-    }
-
-    private static BlockPos findBulwarkAltarCenter(ServerLevel level, BlockPos clicked) {
-        for (int dy = -3; dy <= 3; dy++) {
-            for (int dx = -5; dx <= 5; dx++) {
-                for (int dz = -5; dz <= 5; dz++) {
-                    BlockPos candidate = clicked.offset(dx, dy, dz);
-                    if (level.getBlockState(candidate).is(net.minecraft.world.level.block.Blocks.BEACON)) {
-                        return candidate.below(2);
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private static BlockPos findDeepboundAltarCenter(ServerLevel level, BlockPos clicked) {
-        for (int dy = -2; dy <= 2; dy++) {
-            for (int dx = -5; dx <= 5; dx++) {
-                for (int dz = -5; dz <= 5; dz++) {
-                    BlockPos candidate = clicked.offset(dx, dy, dz);
-                    if (level.getBlockState(candidate).is(net.minecraft.world.level.block.Blocks.SCULK_SHRIEKER)) {
-                        return candidate.below();
-                    }
-                }
-            }
-        }
-        return null;
     }
 
     private boolean correctDimension(Level level) {

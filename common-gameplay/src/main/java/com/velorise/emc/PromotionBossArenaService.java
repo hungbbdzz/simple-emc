@@ -94,6 +94,39 @@ public final class PromotionBossArenaService {
         return dx <= 4 && dz <= 4 && dy >= -1 && dy <= 2;
     }
 
+    public static BlockPos findBulwarkAltarCenter(ServerLevel level, BlockPos clicked) {
+        for (int dy = -3; dy <= 1; dy++) {
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dz = -4; dz <= 4; dz++) {
+                    BlockPos candidate = clicked.offset(dx, dy, dz);
+                    if (hasBulwarkArena(level, candidate) && isBulwarkAltar(clicked, candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public static BlockPos findDeepboundAltarCenter(ServerLevel level, BlockPos clicked) {
+        for (int dy = -2; dy <= 1; dy++) {
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dz = -4; dz <= 4; dz++) {
+                    BlockPos candidate = clicked.offset(dx, dy, dz);
+                    if (hasDeepboundArena(level, candidate) && isDeepboundAltar(clicked, candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public static boolean isBulwarkAltarProtected(ServerLevel level, BlockPos pos) {
+        if (!level.getBlockState(pos).is(VeloriseEMC.AETHERIC_ALTAR.get())) return false;
+        return hasBulwarkArena(level, pos.below(2));
+    }
+
     public static boolean isDeepboundAltarProtected(ServerLevel level, BlockPos pos) {
         return level.getBlockState(pos).is(Blocks.SCULK_SHRIEKER) && hasDeepboundArena(level, pos.below());
     }
@@ -101,22 +134,23 @@ public final class PromotionBossArenaService {
     public static boolean summonBulwarkBoss(ServerLevel level, BlockPos center) {
         if (level.dimension() != Level.END) return false;
         if (!level.getEntitiesOfClass(AethericBulwarkEntity.class,
-            new net.minecraft.world.phys.AABB(center).inflate(96.0D)).isEmpty()) return false;
+            new net.minecraft.world.phys.AABB(center).inflate(96.0D), e -> e.isAlive()).isEmpty()) return false;
         AethericBulwarkEntity boss = VeloriseEMC.AETHERIC_BULWARK.get().create(level);
         if (boss == null) return false;
         boss.bindArena(center);
-        boss.moveTo(center.getX() + 0.5D, center.getY() + 4.0D, center.getZ() + 0.5D, 0.0F, 0.0F);
+        // Place directly on top of the Aetheric Altar (which sits at center.above(2))
+        boss.moveTo(center.getX() + 0.5D, center.getY() + 3.0D, center.getZ() + 0.5D, 0.0F, 0.0F);
         return level.addFreshEntity(boss);
     }
 
     public static boolean summonDeepboundBoss(ServerLevel level, BlockPos center) {
         if (level.dimension() != Level.OVERWORLD) return false;
         if (!level.getEntitiesOfClass(DeepboundWardenEntity.class,
-            new net.minecraft.world.phys.AABB(center).inflate(96.0D)).isEmpty()) return false;
+            new net.minecraft.world.phys.AABB(center).inflate(96.0D), e -> e.isAlive()).isEmpty()) return false;
         DeepboundWardenEntity boss = VeloriseEMC.DEEPBOUND_WARDEN.get().create(level);
         if (boss == null) return false;
         boss.bindArena(center);
-        boss.moveTo(center.getX() + 0.5D, center.getY() + 1.0D, center.getZ() + 0.5D, 0.0F, 0.0F);
+        boss.moveTo(center.getX() + 0.5D, center.getY() + 2.0D, center.getZ() + 0.5D, 0.0F, 0.0F);
         return level.addFreshEntity(boss);
     }
 
@@ -289,10 +323,8 @@ public final class PromotionBossArenaService {
             if (edge <= 4) set(level, center.offset(x, 0, z), edge == 4 ? chiseled : (edge == 3 ? crying : baseBlock));
             if (edge <= 2) set(level, center.offset(x, 1, z), edge == 2 ? trimBlock : chiseled);
         }
-        // Single central altar
         set(level, center.above(2), VeloriseEMC.AETHERIC_ALTAR.get().defaultBlockState());
 
-        // Four corner decorative pylons with End Rods
         for (int[] corner : new int[][] {{3,3},{3,-3},{-3,3},{-3,-3}}) {
             set(level, center.offset(corner[0], 1, corner[1]), chiseled);
             set(level, center.offset(corner[0], 2, corner[1]), wall);
@@ -349,24 +381,17 @@ public final class PromotionBossArenaService {
     }
 
     private static BlockState deepFloorState(int x, int z, double distance) {
-        // 1. Paved Road Pathways connecting outer towers to central altar
         boolean isRoad = Math.abs(x) <= 1 || Math.abs(z) <= 1 || Math.abs(x - z) <= 1 || Math.abs(x + z) <= 1;
         if (isRoad) {
             return ((int)distance % 2 == 0) ? Blocks.DEEPSLATE_BRICKS.defaultBlockState()
                 : Blocks.POLISHED_DEEPSLATE.defaultBlockState();
         }
-
-        // 2. Concentric Reinforced Deepslate Rings
         if (ring(distance, 7.0D, 0.8D) || ring(distance, 15.0D, 0.8D) || ring(distance, 23.0D, 0.8D)) {
             return Blocks.REINFORCED_DEEPSLATE.defaultBlockState();
         }
-
-        // 3. Subtle Crying Obsidian accent ring (narrow line)
         if (ring(distance, 11.0D, 0.35D)) {
             return Blocks.CRYING_OBSIDIAN.defaultBlockState();
         }
-
-        // 4. Textured Deepslate & Sculk Floor Pattern (Crying Obsidian used only as rare accents)
         int motif = Math.floorMod(x * 19 + z * 29 + x * z, 31);
         if (motif < 4) return Blocks.SCULK.defaultBlockState();
         if (motif == 4) return Blocks.SCULK_CATALYST.defaultBlockState();
@@ -375,10 +400,6 @@ public final class PromotionBossArenaService {
         return Blocks.POLISHED_DEEPSLATE.defaultBlockState();
     }
 
-    /**
-     * Five-wide ceremonial road with cross-ribs, alternating side teeth and lantern
-     * pylons. The route still remains fully walkable down its three-block centre.
-     */
     private static void buildDeepboundCauseway(ServerLevel level, BlockPos center, int index) {
         double angle = index * Math.PI / 4.0D;
         double directionX = Math.cos(angle);
@@ -410,7 +431,6 @@ public final class PromotionBossArenaService {
                 }
             }
 
-            // Monumental transverse glyphs break the route into readable sections.
             if (step == 7 || step == 12 || step == 17 || step == 24) {
                 for (int lateral = -3; lateral <= 3; lateral++) {
                     int x = round(directionX * step) + tangentX * lateral;
@@ -424,7 +444,6 @@ public final class PromotionBossArenaService {
             }
         }
 
-        // Paired way-markers visually anchor the causeway to the arena rings.
         for (int markerStep : new int[] {8, 15, 24}) {
             for (int side : new int[] {-1, 1}) {
                 int x = round(directionX * markerStep) + tangentX * 3 * side;
@@ -437,7 +456,6 @@ public final class PromotionBossArenaService {
         }
     }
 
-    /** Rising three-course branch that ties a lower outer pylon back into the shaft. */
     private static void buildDeepboundLowerButtress(ServerLevel level, BlockPos base,
                                                     int dx, int dz, int phase) {
         int tangentX = -dz;
@@ -452,8 +470,6 @@ public final class PromotionBossArenaService {
                     : Blocks.DEEPSLATE_BRICKS.defaultBlockState()));
             set(level, base.offset(x, y - 1, z), Blocks.DEEPSLATE_BRICK_WALL.defaultBlockState());
 
-            // Small side shoulders turn each branch into a flying buttress rather than
-            // a single diagonal stick.
             if (step == 2 || step == 3) {
                 set(level, base.offset(x + tangentX, y, z + tangentZ), Blocks.CHISELED_DEEPSLATE.defaultBlockState());
                 set(level, base.offset(x - tangentX, y, z - tangentZ), Blocks.CHISELED_DEEPSLATE.defaultBlockState());
@@ -463,7 +479,6 @@ public final class PromotionBossArenaService {
         set(level, base.offset(dx * 2, 5, dz * 2), Blocks.DEEPSLATE_BRICK_WALL.defaultBlockState());
     }
 
-    /** Square/octagonal load-bearing belt around the tower's external columns. */
     private static void buildDeepTowerRing(ServerLevel level, BlockPos base, int radius, int y,
                                            BlockState main, BlockState accent, boolean raisedCourse) {
         for (int x = -radius; x <= radius; x++) for (int z = -radius; z <= radius; z++) {
@@ -488,7 +503,6 @@ public final class PromotionBossArenaService {
         BlockState wall = Blocks.DEEPSLATE_BRICK_WALL.defaultBlockState();
         BlockState lantern = Blocks.SOUL_LANTERN.defaultBlockState();
 
-        // --- 1. Broad octagonal plinth (9x9 / 7x7) ---
         for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) {
             if (Math.abs(x) + Math.abs(z) > 7) continue;
             int r = Math.max(Math.abs(x), Math.abs(z));
@@ -505,7 +519,6 @@ public final class PromotionBossArenaService {
             set(level, base.offset(x, 0, z), state);
         }
 
-        // --- 2. Eight substantial lower buttresses, now linked by complete rings ---
         int[][] directions = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}};
         for (int directionIndex = 0; directionIndex < directions.length; directionIndex++) {
             int dx = directions[directionIndex][0];
@@ -530,14 +543,11 @@ public final class PromotionBossArenaService {
             buildDeepboundLowerButtress(level, base, dx, dz, directionIndex);
         }
 
-        // Full perimeter belts bind all lower columns to one another. The two-course
-        // construction avoids the disconnected toothpick-pillar look at ground level.
         buildDeepTowerRing(level, base, 4, 2, bricks, crying, true);
         buildDeepTowerRing(level, base, 4, 6, reinforced, catalyst, true);
         buildDeepTowerRing(level, base, 3, 9, polished, crying, false);
         buildDeepTowerRing(level, base, 4, 11, bricks, catalyst, true);
 
-        // --- 3. Taller carved central shaft: Y = 2..24 (roughly 50% taller) ---
         for (int y = 2; y <= 24; y++) {
             for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
                 boolean corner = Math.abs(x) == 1 && Math.abs(z) == 1;
@@ -556,7 +566,6 @@ public final class PromotionBossArenaService {
             }
         }
 
-        // --- 4. Five double-course cornice belts and cardinal light sockets ---
         for (int bandY : new int[] {6, 11, 16, 21, 24}) {
             for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
                 int r = Math.max(Math.abs(x), Math.abs(z));
@@ -572,8 +581,6 @@ public final class PromotionBossArenaService {
             }
         }
 
-        // Slender upper ribs connect the last cornice to the crown instead of leaving
-        // the top as an isolated cap.
         for (int[] diagonal : new int[][] {{1,1},{1,-1},{-1,1},{-1,-1}}) {
             int sx = diagonal[0] * 2;
             int sz = diagonal[1] * 2;
@@ -584,7 +591,6 @@ public final class PromotionBossArenaService {
             set(level, base.offset(sx, 28, sz), lantern);
         }
 
-        // --- 5. Large chalice crown and inward Warden claws: Y = 25..29 ---
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
             int r = Math.max(Math.abs(x), Math.abs(z));
             if (Math.abs(x) + Math.abs(z) > 5) continue;
@@ -614,28 +620,20 @@ public final class PromotionBossArenaService {
         BlockState cryingObsidian = Blocks.CRYING_OBSIDIAN.defaultBlockState();
         BlockState blackstoneChiseled = Blocks.CHISELED_POLISHED_BLACKSTONE.defaultBlockState();
 
-        // 1. Solid Sub-Foundation (Y = -2, 11x11, dx/dz = -5..5)
         for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) {
             int edge = Math.max(Math.abs(x), Math.abs(z));
             if (edge <= 5) set(level, center.offset(x, -2, z), edge == 5 ? frame : floor);
         }
-
-        // 2. Solid Tier 1 Base Floor (Y = -1, 9x9, dx/dz = -4..4) - NO GAPS!
         for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) {
             int edge = Math.max(Math.abs(x), Math.abs(z));
             if (edge <= 4) set(level, center.offset(x, -1, z), edge == 4 ? frame : (edge == 3 ? inner : sculk));
         }
-
-        // 3. Solid Tier 2 Stepped Platform (Y = 0, 5x5, dx/dz = -2..2)
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             int edge = Math.max(Math.abs(x), Math.abs(z));
             if (edge <= 2) set(level, center.offset(x, 0, z), edge == 2 ? frame : sculk);
         }
-
-        // 4. Central Altar Summit Block (Y = 1 at 0,1,0) - Sculk Shrieker
         set(level, center.above(1), Blocks.SCULK_SHRIEKER.defaultBlockState().setValue(net.minecraft.world.level.block.SculkShriekerBlock.CAN_SUMMON, true));
 
-        // 5. Four Cardinal Pedestals (dx/dz = 3,0)
         for (int[] side : new int[][] {{3,0},{-3,0},{0,3},{0,-3}}) {
             set(level, center.offset(side[0], 0, side[1]), catalyst);
             set(level, center.offset(side[0], 1, side[1]), cryingObsidian);
@@ -644,18 +642,6 @@ public final class PromotionBossArenaService {
         for (int[] corner : new int[][] {{2,2},{2,-2},{-2,2},{-2,-2}}) {
             set(level, center.offset(corner[0], 0, corner[1]), blackstoneChiseled);
             set(level, center.offset(corner[0], 1, corner[1]), catalyst);
-        }
-    }
-
-    private static void clearArenaSpace(ServerLevel level, BlockPos center, int radius, int floorOffset, int clearHeight) {
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                if (x * x + z * z > (radius + 1) * (radius + 1)) continue;
-                for (int y = floorOffset; y <= clearHeight; y++) {
-                    BlockPos pos = center.offset(x, y, z);
-                    if (!level.getBlockState(pos).isAir()) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
-                }
-            }
         }
     }
 

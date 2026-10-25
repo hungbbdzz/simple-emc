@@ -10,6 +10,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -24,7 +25,7 @@ public final class ArenaSummonService {
     private ArenaSummonService() {}
 
     public static boolean isPending(ResourceKey<Level> dimension, BlockPos center, BossKind kind) {
-        return PENDING.stream().anyMatch(p -> p.dimension == dimension && p.center.equals(center) && p.kind == kind);
+        return PENDING.stream().anyMatch(p -> p.dimension.equals(dimension) && p.center.equals(center) && p.kind == kind);
     }
 
     public static boolean isBossPresent(ServerLevel level, BlockPos center, BossKind kind) {
@@ -41,7 +42,7 @@ public final class ArenaSummonService {
 
     public static boolean start(ServerLevel level, BlockPos center, BossKind kind) {
         if (isBossPresent(level, center, kind)) return false;
-        PENDING.add(new Pending(level.dimension(), center.immutable(), kind, SUMMON_TICKS));
+        PENDING.add(new Pending(level.getServer(), level.dimension(), center.immutable(), kind, SUMMON_TICKS));
         net.minecraft.sounds.SoundEvent startSound = switch (kind) {
             case INFERNAL_CRUCIBLE -> SoundEvents.FIRECHARGE_USE;
             case AETHERIC_BULWARK -> SoundEvents.END_PORTAL_FRAME_FILL;
@@ -57,6 +58,11 @@ public final class ArenaSummonService {
         Iterator<Pending> it = PENDING.iterator();
         while (it.hasNext()) {
             Pending pending = it.next();
+            MinecraftServer ownerServer = pending.serverRef.get();
+            if (ownerServer == null || ownerServer != server) {
+                it.remove();
+                continue;
+            }
             ServerLevel level = server.getLevel(pending.dimension);
             if (level == null) {
                 it.remove();
@@ -126,7 +132,6 @@ public final class ArenaSummonService {
         double maxSkyHeight = pending.kind == BossKind.LAST_ECHO ? 26.0D : 20.0D;
         double columnTop = cy + progress * maxSkyHeight;
 
-        // 1. Double Spiral Helix orbiting around the column up into the sky
         for (int i = 0; i < 12; i++) {
             double angle = (pending.ticksRemaining * 0.22D) + i * (Math.PI / 6.0D);
             double heightFrac = (double) i / 12.0D;
@@ -156,7 +161,6 @@ public final class ArenaSummonService {
             }
         }
 
-        // 2. High Sky Beam Core (vertical particles rising continuously to top)
         for (double h = 0; h <= progress * maxSkyHeight; h += 2.5D) {
             double py = cy + h;
             switch (pending.kind) {
@@ -167,7 +171,6 @@ public final class ArenaSummonService {
             }
         }
 
-        // 3. Periodic Rising Chanting Audio
         if ((pending.ticksRemaining & 7) == 0) {
             net.minecraft.sounds.SoundEvent pulseSound = switch (pending.kind) {
                 case INFERNAL_CRUCIBLE -> SoundEvents.BLAZE_AMBIENT;
@@ -181,12 +184,14 @@ public final class ArenaSummonService {
     }
 
     private static final class Pending {
+        private final WeakReference<MinecraftServer> serverRef;
         private final ResourceKey<Level> dimension;
         private final BlockPos center;
         private final BossKind kind;
         private int ticksRemaining;
 
-        private Pending(ResourceKey<Level> dimension, BlockPos center, BossKind kind, int ticksRemaining) {
+        private Pending(MinecraftServer server, ResourceKey<Level> dimension, BlockPos center, BossKind kind, int ticksRemaining) {
+            this.serverRef = new WeakReference<>(server);
             this.dimension = dimension;
             this.center = center;
             this.kind = kind;

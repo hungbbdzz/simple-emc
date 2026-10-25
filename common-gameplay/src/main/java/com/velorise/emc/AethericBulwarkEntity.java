@@ -1,6 +1,8 @@
 package com.velorise.emc;
 
+import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -9,35 +11,63 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Shulker;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.ShulkerBullet;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
+
 /** Tier III promotion boss: a giant shulker fortress with gravity and projectile-control phases. */
 public final class AethericBulwarkEntity extends Shulker {
-    private final ServerBossEvent bossBar = new ServerBossEvent(Component.translatable("entity.velorise_emc.aetheric_bulwark"), BossEvent.BossBarColor.PURPLE, BossEvent.BossBarOverlay.PROGRESS);
-    private int skillClock;
-    private int phase;
-    private BlockPos arena = BlockPos.ZERO;
+    public static final String MINION_TAG = "AethericShulkerling";
     private static final double ARENA_RADIUS = 25.0D;
+    private static final float BASE_ENCOUNTER_HEALTH = 2_200.0F;
+    /** Vanilla clamps MAX_HEALTH to 1024, so damage is resolved against a 1000-HP physical segment. */
+    private static final float PHYSICAL_HEALTH_SEGMENT = 1_000.0F;
+    private static final int MAX_ACTIVE_MINIONS = 4;
+
+    private final ServerBossEvent bossBar = new ServerBossEvent(
+        Component.translatable("entity.velorise_emc.aetheric_bulwark"),
+        BossEvent.BossBarColor.PURPLE,
+        BossEvent.BossBarOverlay.PROGRESS
+    );
+    private BlockPos arena = BlockPos.ZERO;
+    private boolean initializedHealth;
+    private float encounterHealth = BASE_ENCOUNTER_HEALTH;
+    private float encounterMaxHealth = BASE_ENCOUNTER_HEALTH;
+    private int skillClock;
+    private int phase = 1;
+    private int lastPhase = 1;
+    private int lastSkill = -1;
+    private int shellGuardCooldown;
+    private final List<PendingStrike> pendingStrikes = new ArrayList<>();
 
     public AethericBulwarkEntity(EntityType<? extends Shulker> type, Level level) {
         super(type, level);
         setCustomName(Component.translatable("entity.velorise_emc.aetheric_bulwark"));
         setCustomNameVisible(true);
+        setPersistenceRequired();
         xpReward = 180;
     }
 
-    public void bindArena(BlockPos center) { arena = center.immutable(); }
+    public void bindArena(BlockPos center) {
+        arena = center.immutable();
+    }
 
     public static AttributeSupplier.Builder createAttributes() {
         return Shulker.createAttributes()
@@ -48,85 +78,175 @@ public final class AethericBulwarkEntity extends Shulker {
             .add(Attributes.FOLLOW_RANGE, 64.0D);
     }
 
+    @Override public boolean removeWhenFarAway(double distance) { return false; }
+    @Override protected boolean shouldDespawnInPeaceful() { return false; }
+
     @Override public void startSeenByPlayer(ServerPlayer player) { super.startSeenByPlayer(player); bossBar.addPlayer(player); }
     @Override public void stopSeenByPlayer(ServerPlayer player) { super.stopSeenByPlayer(player); bossBar.removePlayer(player); }
 
-    private int lastPhase = 1;
+    @Override
+    protected boolean teleportSomewhere() {
+        // Prevent Vanilla Shulker from randomly teleporting onto high outer obelisk roofs or outside the arena.
+        if (level().isClientSide || arena.equals(BlockPos.ZERO)) return false;
+        return false;
+    }
 
-    @Override public void tick() {
+    @Override
+    public void tick() {
         super.tick();
         if (level().isClientSide) return;
-        bossBar.setProgress(getHealth() / getMaxHealth());
-        enforceArena(level());
-        phase = getHealth() > getMaxHealth()*0.70F ? 1 : getHealth() > getMaxHealth()*0.35F ? 2 : 3;
+        if (!(level() instanceof ServerLevel level)) return;
+
+        ensureHealthInitialized();
+        float healthRatio = encounterMaxHealth <= 0.0F ? 0.0F : Mth.clamp(encounterHealth / encounterMaxHealth, 0.0F, 1.0F);
+        bossBar.setProgress(healthRatio);
+        enforceArena(level);
+
+        if (shellGuardCooldown > 0) shellGuardCooldown--;
+        tickPendingStrikes(level);
+
+        phase = healthRatio > 0.70F ? 1 : healthRatio > 0.35F ? 2 : 3;
         if (phase > lastPhase) {
             lastPhase = phase;
-            if (level() instanceof ServerLevel sl) {
-                sl.playSound(null, blockPosition(), SoundEvents.SHULKER_CLOSE, SoundSource.HOSTILE, 3.5F, 0.55F);
-                sl.playSound(null, blockPosition(), SoundEvents.ANVIL_BREAK, SoundSource.HOSTILE, 2.2F, 0.65F);
-                sl.playSound(null, blockPosition(), SoundEvents.BEACON_DEACTIVATE, SoundSource.HOSTILE, 3.0F, 0.75F);
-                sl.sendParticles(ParticleTypes.REVERSE_PORTAL, getX(), getY() + 1.0D, getZ(), 80, 1.5D, 1.5D, 1.5D, 0.08D);
-            }
+            level.playSound(null, blockPosition(), SoundEvents.SHULKER_CLOSE, SoundSource.HOSTILE, 3.5F, 0.55F);
+            level.playSound(null, blockPosition(), SoundEvents.ANVIL_BREAK, SoundSource.HOSTILE, 2.2F, 0.65F);
+            level.playSound(null, blockPosition(), SoundEvents.BEACON_DEACTIVATE, SoundSource.HOSTILE, 3.0F, 0.75F);
+            level.sendParticles(ParticleTypes.REVERSE_PORTAL, getX(), getY() + 1.0D, getZ(), 80, 1.5D, 1.5D, 1.5D, 0.08D);
         }
-        if (getTarget() instanceof Player tracked && insideArena(tracked.position(), ARENA_RADIUS)) {
-            getLookControl().setLookAt(tracked, 180.0F, 180.0F);
+
+        ServerPlayer target = findCombatTarget(level);
+        if (target == null) {
+            setTarget(null);
+            return;
         }
-        if (++skillClock < (phase == 1 ? 80 : phase == 2 ? 60 : 40)) return;
-        skillClock = 0;
-        if (!(level() instanceof ServerLevel level)) return;
-        Player nearest = level.getNearestPlayer(this, 64.0D);
-        if (!(nearest instanceof ServerPlayer target) || !insideArena(target.position(), ARENA_RADIUS)) return;
         setTarget(target);
         getLookControl().setLookAt(target, 180.0F, 180.0F);
-        lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
+        lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
 
-        int choice = random.nextInt(phase == 1 ? 4 : phase == 2 ? 6 : 7);
+        if (++skillClock < (phase == 1 ? 76 : phase == 2 ? 56 : 40)) return;
+        skillClock = 0;
+
+        int poolSize = phase == 1 ? 4 : phase == 2 ? 6 : 7;
+        int choice = random.nextInt(poolSize);
+        if (choice == lastSkill) {
+            choice = (choice + 1 + random.nextInt(poolSize - 1)) % poolSize;
+        }
+        if (choice == 5 && shellGuardCooldown > 0) {
+            choice = 0;
+        }
+        lastSkill = choice;
+
         if (choice == 0) orbitalBarrage(level, target);
         else if (choice == 1) gravityInversion(level, target);
         else if (choice == 2) spatialSwap(level, target);
         else if (choice == 3) fakeShadowDecoy(level, target);
         else if (choice == 4) gravitySingularity(level, target);
-        else if (choice == 5) ironShellGuard(level);
+        else if (choice == 5) ironShellGuard(level, target);
         else chargedBurst(level, target);
     }
 
-    private void orbitalBarrage(ServerLevel level, ServerPlayer target) {
-        level.playSound(null, blockPosition(), SoundEvents.SHULKER_SHOOT, SoundSource.HOSTILE, 2.2F, .55F);
-        for (int i = 0; i < 12; i++) {
-            double a = i * Math.PI * 2 / 12.0;
-            level.sendParticles(ParticleTypes.REVERSE_PORTAL, getX() + Math.cos(a) * 4, getY() + 1.5, getZ() + Math.sin(a) * 4, 8, .15, .15, .15, .03);
+    private void ensureHealthInitialized() {
+        if (!initializedHealth) {
+            encounterMaxHealth = BASE_ENCOUNTER_HEALTH;
+            encounterHealth = encounterMaxHealth;
+            if (getAttribute(Attributes.MAX_HEALTH) != null) {
+                getAttribute(Attributes.MAX_HEALTH).setBaseValue(PHYSICAL_HEALTH_SEGMENT);
+            }
+            setHealth(PHYSICAL_HEALTH_SEGMENT);
+            initializedHealth = true;
         }
-        delayedLevitationHit(level, target, 18.0F, 35, 45);
     }
 
-    /** High Gravity Inversion: lifts player high up into the stratosphere with NO Slow Falling / Feather Falling protection! */
+    private ServerPlayer findCombatTarget(ServerLevel level) {
+        if (getTarget() instanceof ServerPlayer current && isValidArenaTarget(current)) {
+            return current;
+        }
+        Player nearest = level.getNearestPlayer(getX(), getY(), getZ(), 64.0D,
+            entity -> entity instanceof ServerPlayer sp && isValidArenaTarget(sp));
+        return nearest instanceof ServerPlayer sp ? sp : null;
+    }
+
+    private boolean isValidArenaTarget(ServerPlayer player) {
+        return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator()
+            && insideArena(player.position(), ARENA_RADIUS);
+    }
+
+    private void orbitalBarrage(ServerLevel level, ServerPlayer target) {
+        level.playSound(null, blockPosition(), SoundEvents.SHULKER_SHOOT, SoundSource.HOSTILE, 2.2F, 0.55F);
+        for (int i = 0; i < 12; i++) {
+            double a = i * Math.PI * 2.0D / 12.0D;
+            level.sendParticles(ParticleTypes.REVERSE_PORTAL, getX() + Math.cos(a) * 4.0D, getY() + 1.5D, getZ() + Math.sin(a) * 4.0D, 8, 0.15D, 0.15D, 0.15D, 0.03D);
+        }
+        delayedLevitationHit(level, target, 18.0F, 30, 45, false);
+    }
+
+    /** High Gravity Inversion: queues a brief high-gravity warning then launches the player skyward. */
     private void gravityInversion(ServerLevel level, ServerPlayer target) {
         level.playSound(null, target.blockPosition(), SoundEvents.END_PORTAL_SPAWN, SoundSource.HOSTILE, 2.0F, 1.6F);
-        // Strip Slow Falling so player takes FULL catastrophic fall damage upon landing!
         target.removeEffect(MobEffects.SLOW_FALLING);
-        // High Levitation VII (amplifier 6) launches player Y + 35..45 blocks into the sky!
-        target.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 60, 6));
+        target.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 55, 5));
         level.sendParticles(ParticleTypes.PORTAL, target.getX(), target.getY(), target.getZ(), 120, 2.0D, 3.0D, 2.0D, 0.25D);
         level.sendParticles(ParticleTypes.REVERSE_PORTAL, target.getX(), target.getY() + 1.0D, target.getZ(), 80, 1.5D, 2.0D, 1.5D, 0.15D);
     }
 
-    /** Spatial Swap: Swaps boss position directly with player position (NO random player teleports). */
+    /** Spatial Swap: Swaps boss position with a ground-snapped arena position under the player. */
     private void spatialSwap(ServerLevel level, ServerPlayer target) {
         Vec3 oldBoss = position();
-        Vec3 targetPos = target.position();
+        Vec3 safeBossDest = snapToArenaFloor(level, target.position());
         level.playSound(null, blockPosition(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 2.0F, 0.7F);
         level.playSound(null, target.blockPosition(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 2.0F, 0.9F);
-        teleportTo(targetPos.x, targetPos.y, targetPos.z);
-        target.teleportTo(oldBoss.x, oldBoss.y, oldBoss.z);
+        teleportTo(safeBossDest.x, safeBossDest.y, safeBossDest.z);
+        target.teleportTo(oldBoss.x, Math.max(oldBoss.y, arena.equals(BlockPos.ZERO) ? oldBoss.y : arena.getY() + 1.0D), oldBoss.z);
         level.sendParticles(ParticleTypes.DRAGON_BREATH, oldBoss.x, oldBoss.y + 1.0D, oldBoss.z, 80, 1.0D, 1.0D, 1.0D, 0.12D);
-        level.sendParticles(ParticleTypes.DRAGON_BREATH, targetPos.x, targetPos.y + 1.0D, targetPos.z, 80, 1.0D, 1.0D, 1.0D, 0.12D);
+        level.sendParticles(ParticleTypes.DRAGON_BREATH, safeBossDest.x, safeBossDest.y + 1.0D, safeBossDest.z, 80, 1.0D, 1.0D, 1.0D, 0.12D);
     }
 
-    /** Shulkerling Ambush: spawns a normal Shulker minion behind the target instead of a player-shaped decoy. */
+    private Vec3 snapToArenaFloor(ServerLevel level, Vec3 candidate) {
+        double x = candidate.x;
+        double z = candidate.z;
+        if (!arena.equals(BlockPos.ZERO)) {
+            double cx = arena.getX() + 0.5D;
+            double cz = arena.getZ() + 0.5D;
+            double dx = x - cx;
+            double dz = z - cz;
+            double dist = Math.sqrt(dx * dx + dz * dz);
+            double maxR = ARENA_RADIUS - 3.0D;
+            if (dist > maxR && dist > 1.0E-4D) {
+                x = cx + dx * (maxR / dist);
+                z = cz + dz * (maxR / dist);
+            }
+        }
+        int bx = Mth.floor(x);
+        int bz = Mth.floor(z);
+        int startY = Mth.floor(candidate.y);
+        int minY = arena.equals(BlockPos.ZERO) ? level.getMinBuildHeight() + 1 : arena.getY() - 1;
+        BlockPos pos = new BlockPos(bx, startY, bz);
+        while (pos.getY() > minY && level.getBlockState(pos.below()).isAir()) {
+            pos = pos.below();
+        }
+        while (pos.getY() < startY + 6 && !level.getBlockState(pos).isAir()) {
+            pos = pos.above();
+        }
+        return new Vec3(bx + 0.5D, pos.getY(), bz + 0.5D);
+    }
+
+    /** Shulkerling Ambush: spawns a normal Shulker minion behind the target, capped at MAX_ACTIVE_MINIONS. */
     private void fakeShadowDecoy(ServerLevel level, ServerPlayer target) {
+        List<Shulker> activeMinions = level.getEntitiesOfClass(Shulker.class,
+            getBoundingBox().inflate(ARENA_RADIUS + 8.0D),
+            e -> e != this && e.isAlive() && e.getTags().contains(MINION_TAG));
+        if (activeMinions.size() >= MAX_ACTIVE_MINIONS) {
+            orbitalBarrage(level, target);
+            return;
+        }
+
         level.playSound(null, target.blockPosition(), SoundEvents.SHULKER_TELEPORT, SoundSource.HOSTILE, 2.5F, 0.75F);
-        Vec3 offset = target.getLookAngle().reverse().scale(2.5D);
-        Vec3 spawnPos = target.position().add(offset);
+        Vec3 look = target.getLookAngle();
+        Vec3 horizontalLook = new Vec3(look.x, 0.0D, look.z);
+        if (horizontalLook.lengthSqr() < 1.0E-4D) horizontalLook = new Vec3(0.0D, 0.0D, 1.0D);
+        else horizontalLook = horizontalLook.normalize();
+        Vec3 rawSpawn = target.position().subtract(horizontalLook.scale(2.5D));
+        Vec3 spawnPos = snapToArenaFloor(level, rawSpawn);
 
         Shulker minion = EntityType.SHULKER.create(level);
         if (minion == null) return;
@@ -136,7 +256,7 @@ public final class AethericBulwarkEntity extends Shulker {
         minion.setCustomNameVisible(true);
         minion.setHealth(Math.min(20.0F, minion.getMaxHealth()));
         minion.setTarget(target);
-        minion.addTag("AethericShulkerling");
+        minion.addTag(MINION_TAG);
         level.addFreshEntity(minion);
 
         level.sendParticles(ParticleTypes.REVERSE_PORTAL, spawnPos.x, spawnPos.y + 1.0D, spawnPos.z,
@@ -145,13 +265,14 @@ public final class AethericBulwarkEntity extends Shulker {
             30, 0.6D, 0.8D, 0.6D, 0.03D);
     }
 
-    /** Gravity Singularity: Pulls players towards a crushing purple void well at target's feet! */
+    /** Gravity Singularity: Pulls valid arena players towards a crushing purple void well at target's feet! */
     private void gravitySingularity(ServerLevel level, ServerPlayer target) {
         Vec3 center = target.position();
         level.playSound(null, target.blockPosition(), SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 2.5F, 1.5F);
         AABB box = target.getBoundingBox().inflate(14.0D, 6.0D, 14.0D);
-        for (ServerPlayer p : level.getEntitiesOfClass(ServerPlayer.class, box)) {
-            Vec3 dir = center.subtract(p.position()).normalize().scale(0.55D);
+        for (ServerPlayer p : level.getEntitiesOfClass(ServerPlayer.class, box, this::isValidArenaTarget)) {
+            Vec3 diff = center.subtract(p.position());
+            Vec3 dir = diff.lengthSqr() > 1.0E-4D ? diff.normalize().scale(0.55D) : Vec3.ZERO;
             p.setDeltaMovement(p.getDeltaMovement().add(dir.x, 0.25D, dir.z));
             p.hurt(level.damageSources().mobAttack(this), 16.0F);
             p.hasImpulse = true;
@@ -160,14 +281,16 @@ public final class AethericBulwarkEntity extends Shulker {
         level.sendParticles(ParticleTypes.REVERSE_PORTAL, center.x, center.y + 1.0D, center.z, 160, 4.0D, 2.0D, 4.0D, 0.20D);
     }
 
-    /** Iron Shell Guard: Shulker closes shell, gains Resistance V, and fires 8 radial homing bullets! */
-    private void ironShellGuard(ServerLevel level) {
+    /** Iron Shell Guard: Shulker closes shell, gains Resistance III (60% DR), and fires 8 radial homing bullets! */
+    private void ironShellGuard(ServerLevel level, ServerPlayer target) {
+        shellGuardCooldown = 160;
         level.playSound(null, blockPosition(), SoundEvents.SHULKER_CLOSE, SoundSource.HOSTILE, 3.0F, 0.6F);
-        addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 80, 4));
+        addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 70, 2));
         for (int i = 0; i < 8; i++) {
             double angle = i * Math.PI * 2.0D / 8.0D;
-            net.minecraft.world.entity.projectile.ShulkerBullet bullet = new net.minecraft.world.entity.projectile.ShulkerBullet(level, this, getTarget(), net.minecraft.core.Direction.UP.getAxis());
-            bullet.moveTo(getX() + Math.cos(angle) * 1.5D, getY() + 1.2D, getZ() + Math.sin(angle) * 1.5D, (float)Math.toDegrees(angle), 0.0F);
+            ShulkerBullet bullet = new ShulkerBullet(level, this, target, Direction.UP.getAxis());
+            bullet.moveTo(getX() + Math.cos(angle) * 1.5D, getY() + 1.2D, getZ() + Math.sin(angle) * 1.5D,
+                (float) Math.toDegrees(angle), 0.0F);
             level.addFreshEntity(bullet);
         }
         level.sendParticles(ParticleTypes.END_ROD, getX(), getY() + 1.0D, getZ(), 100, 2.0D, 2.0D, 2.0D, 0.15D);
@@ -175,23 +298,77 @@ public final class AethericBulwarkEntity extends Shulker {
 
     private void chargedBurst(ServerLevel level, ServerPlayer target) {
         level.playSound(null, blockPosition(), SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE, 2.5F, 1.45F);
-        delayedLevitationHit(level, target, 34.0F, 22, 70);
+        delayedLevitationHit(level, target, 32.0F, 22, 65, true);
     }
 
-    private void delayedLevitationHit(ServerLevel level, ServerPlayer target, float damage, int visualTicks, int duration) {
-        level.sendParticles(ParticleTypes.SONIC_BOOM, target.getX(), target.getY() + 1, target.getZ(), 1, 0, 0, 0, 0);
-        target.hurt(level.damageSources().mobAttack(this), damage);
-        target.addEffect(new MobEffectInstance(MobEffects.LEVITATION, duration, 0));
+    private void delayedLevitationHit(ServerLevel level, ServerPlayer target, float damage,
+                                      int visualTicks, int duration, boolean trackTarget) {
+        pendingStrikes.add(new PendingStrike(
+            target.getUUID(),
+            target.position(),
+            damage,
+            Math.max(1, visualTicks),
+            Math.max(1, visualTicks),
+            duration,
+            trackTarget
+        ));
+    }
+
+    private void tickPendingStrikes(ServerLevel level) {
+        if (pendingStrikes.isEmpty()) return;
+        Iterator<PendingStrike> it = pendingStrikes.iterator();
+        while (it.hasNext()) {
+            PendingStrike strike = it.next();
+            Player p = level.getPlayerByUUID(strike.targetId);
+            ServerPlayer tracked = p instanceof ServerPlayer sp && isValidArenaTarget(sp) ? sp : null;
+            if (strike.trackTarget && tracked != null && strike.ticksRemaining > 6) {
+                strike.impactPos = tracked.position();
+            }
+
+            Vec3 center = strike.impactPos;
+            double progress = 1.0D - (strike.ticksRemaining / (double) strike.totalTicks);
+            double ringRadius = Mth.lerp(progress, 3.6D, 0.5D);
+            if (strike.ticksRemaining % 2 == 0) {
+                for (int i = 0; i < 12; i++) {
+                    double a = i * Math.PI * 2.0D / 12.0D + progress * Math.PI;
+                    level.sendParticles(ParticleTypes.END_ROD,
+                        center.x + Math.cos(a) * ringRadius,
+                        center.y + 0.25D,
+                        center.z + Math.sin(a) * ringRadius,
+                        1, 0.02D, 0.02D, 0.02D, 0.0D);
+                }
+            }
+
+            if (--strike.ticksRemaining > 0) continue;
+
+            level.sendParticles(ParticleTypes.SONIC_BOOM, center.x, center.y + 1.0D, center.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+            level.sendParticles(ParticleTypes.REVERSE_PORTAL, center.x, center.y + 1.0D, center.z, 45, 1.6D, 1.0D, 1.6D, 0.08D);
+            level.playSound(null, BlockPos.containing(center.x, center.y, center.z),
+                SoundEvents.SHULKER_BULLET_HIT, SoundSource.HOSTILE, 2.5F, 0.75F);
+
+            AABB hitBox = new AABB(center.x - 3.2D, center.y - 2.0D, center.z - 3.2D,
+                center.x + 3.2D, center.y + 4.0D, center.z + 3.2D);
+            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, hitBox, this::isValidArenaTarget)) {
+                if (player.position().distanceToSqr(center) <= 3.2D * 3.2D) {
+                    player.hurt(level.damageSources().mobAttack(this), strike.damage);
+                    player.addEffect(new MobEffectInstance(MobEffects.LEVITATION, strike.levitationDuration, 0));
+                }
+            }
+            it.remove();
+        }
     }
 
     private void enforceArena(Level level) {
         if (arena.equals(BlockPos.ZERO)) return;
-        if (!insideArena(position(), ARENA_RADIUS + 3.0D)) {
-            teleportTo(arena.getX() + 0.5D, arena.getY() + 2.0D, arena.getZ() + 0.5D);
+        if (!insideArena(position(), ARENA_RADIUS + 3.0D) || getY() < arena.getY() - 2.0D) {
+            // Altar is at arena.above(2); place the boss cleanly on top at arena.getY() + 3.0D.
+            teleportTo(arena.getX() + 0.5D, arena.getY() + 3.0D, arena.getZ() + 0.5D);
             setTarget(null);
             return;
         }
-        if (getTarget() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) setTarget(null);
+        if (getTarget() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) {
+            setTarget(null);
+        }
     }
 
     private boolean insideArena(Vec3 position, double radius) {
@@ -201,34 +378,105 @@ public final class AethericBulwarkEntity extends Shulker {
         return dx * dx + dz * dz <= radius * radius;
     }
 
-    @Override protected net.minecraft.sounds.SoundEvent getHurtSound(DamageSource source) {
+    @Override
+    protected net.minecraft.sounds.SoundEvent getHurtSound(DamageSource source) {
         return SoundEvents.SHULKER_HURT;
     }
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        if (source.getEntity() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) return false;
-        if (!level().isClientSide && source.getEntity() != null) {
+        if (!(level() instanceof ServerLevel)) return super.hurt(source, amount);
+        boolean bypasses = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
+        if (!bypasses && source.getEntity() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) {
+            return false;
+        }
+
+        ensureHealthInitialized();
+        if (bypasses && amount >= encounterHealth) {
+            encounterHealth = 0.0F;
+            setHealth(0.0F);
+            die(source);
+            return true;
+        }
+
+        setHealth(PHYSICAL_HEALTH_SEGMENT);
+        boolean accepted = super.hurt(source, Math.min(Math.max(0.0F, amount), PHYSICAL_HEALTH_SEGMENT - 1.0F));
+        if (!accepted) return false;
+
+        if (source.getEntity() != null) {
             level().playSound(null, blockPosition(), SoundEvents.SHULKER_HURT, SoundSource.HOSTILE, 2.5F, 0.75F);
         }
-        return super.hurt(source, amount);
+
+        float dealt = isDeadOrDying() ? amount : Math.max(0.0F, PHYSICAL_HEALTH_SEGMENT - getHealth());
+        encounterHealth = Math.max(0.0F, encounterHealth - dealt);
+        if (encounterHealth <= 0.0F) {
+            if (!isDeadOrDying()) {
+                setHealth(0.0F);
+                die(source);
+            }
+        } else {
+            setHealth(PHYSICAL_HEALTH_SEGMENT);
+        }
+        return true;
     }
 
-    @Override public void addAdditionalSaveData(CompoundTag tag) {
+    @Override
+    public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putLong("Arena", arena.asLong());
+        tag.putBoolean("InitializedHealth", initializedHealth);
+        tag.putFloat("EncounterHealth", encounterHealth);
+        tag.putFloat("EncounterMaxHealth", encounterMaxHealth);
+        tag.putInt("LastPhase", lastPhase);
     }
 
-    @Override public void readAdditionalSaveData(CompoundTag tag) {
+    @Override
+    public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         if (tag.contains("Arena")) arena = BlockPos.of(tag.getLong("Arena"));
+        initializedHealth = tag.getBoolean("InitializedHealth");
+        if (tag.contains("EncounterHealth")) encounterHealth = tag.getFloat("EncounterHealth");
+        if (tag.contains("EncounterMaxHealth")) encounterMaxHealth = tag.getFloat("EncounterMaxHealth");
+        if (tag.contains("LastPhase")) lastPhase = tag.getInt("LastPhase");
+        if (initializedHealth && encounterMaxHealth > 0.0F && encounterHealth > 0.0F) {
+            setHealth(PHYSICAL_HEALTH_SEGMENT);
+        } else {
+            initializedHealth = false;
+        }
     }
 
-    @Override public void die(DamageSource source) {
-        if(level() instanceof ServerLevel level) {
-            level.playSound(null,blockPosition(),SoundEvents.END_PORTAL_SPAWN,SoundSource.HOSTILE,3F,.45F);
-            level.sendParticles(ParticleTypes.EXPLOSION_EMITTER,getX(),getY()+1,getZ(),3,1,1,1,0);
+    @Override
+    public void die(DamageSource source) {
+        pendingStrikes.clear();
+        if (level() instanceof ServerLevel level) {
+            for (Shulker minion : level.getEntitiesOfClass(Shulker.class, getBoundingBox().inflate(ARENA_RADIUS + 16.0D),
+                e -> e != this && e.getTags().contains(MINION_TAG))) {
+                minion.discard();
+            }
+            level.playSound(null, blockPosition(), SoundEvents.END_PORTAL_SPAWN, SoundSource.HOSTILE, 3.0F, 0.45F);
+            level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, getX(), getY() + 1.0D, getZ(), 3, 1.0D, 1.0D, 1.0D, 0.0D);
         }
         super.die(source);
+    }
+
+    private static final class PendingStrike {
+        private final UUID targetId;
+        private Vec3 impactPos;
+        private final float damage;
+        private int ticksRemaining;
+        private final int totalTicks;
+        private final int levitationDuration;
+        private final boolean trackTarget;
+
+        private PendingStrike(UUID targetId, Vec3 impactPos, float damage,
+                              int ticksRemaining, int totalTicks, int levitationDuration, boolean trackTarget) {
+            this.targetId = targetId;
+            this.impactPos = impactPos;
+            this.damage = damage;
+            this.ticksRemaining = ticksRemaining;
+            this.totalTicks = totalTicks;
+            this.levitationDuration = levitationDuration;
+            this.trackTarget = trackTarget;
+        }
     }
 }

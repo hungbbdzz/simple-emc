@@ -22,8 +22,8 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 
 import java.util.Arrays;
 
@@ -64,13 +64,12 @@ public final class ThreatScalingEvents {
             return;
         }
 
-        if (!(livingAttacker instanceof Monster) || isExcludedHostile(livingAttacker)) return;
+        if (!(livingAttacker instanceof Monster) || isCustomEncounterEntity(livingAttacker) || isExcludedHostile(livingAttacker)) return;
         MinecraftServer server = livingAttacker.getServer();
         if (server == null || !GameplayConfig.current().world.mobThreatScaling.enabled) return;
         float multiplier = ThreatScalingProfile.mobDamageMultiplier(WorldProgressionData.get(server).snapshot());
         if (multiplier > 1.0F) event.setAmount(event.getAmount() * multiplier);
     }
-
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onLivingDeath(LivingDeathEvent event) {
@@ -102,7 +101,7 @@ public final class ThreatScalingEvents {
             return;
         }
 
-        if (dead instanceof Monster && attacker instanceof ServerPlayer killer) {
+        if (dead instanceof Monster && !isCustomEncounterEntity(dead) && attacker instanceof ServerPlayer killer) {
             int threatTier = dead.getPersistentData().getInt(MOB_TIER);
             if (threatTier > 0) SimpleAdvancements.award(killer, "world/world_hardens");
             if (threatTier >= 3) SimpleAdvancements.award(killer, "world/apex_survivor");
@@ -132,11 +131,13 @@ public final class ThreatScalingEvents {
         double healthBonus = ThreatScalingProfile.bossBonusHealth(counted);
         float damageBonus = ThreatScalingProfile.bossBonusDamage(counted);
 
-        AttributeInstance health = boss.getAttribute(Attributes.MAX_HEALTH);
-        if (health != null && healthBonus > 0.0D) {
-            health.removeModifier(BOSS_HEALTH_ID);
-            health.addPermanentModifier(new AttributeModifier(BOSS_HEALTH_ID, healthBonus, AttributeModifier.Operation.ADD_VALUE));
-            boss.setHealth(boss.getMaxHealth());
+        if (!(boss instanceof DeepboundWardenEntity)) {
+            AttributeInstance health = boss.getAttribute(Attributes.MAX_HEALTH);
+            if (health != null && healthBonus > 0.0D) {
+                health.removeModifier(BOSS_HEALTH_ID);
+                health.addPermanentModifier(new AttributeModifier(BOSS_HEALTH_ID, healthBonus, AttributeModifier.Operation.ADD_VALUE));
+                boss.setHealth(boss.getMaxHealth());
+            }
         }
         boss.getPersistentData().putBoolean(BOSS_SCALED, true);
         boss.getPersistentData().putInt(BOSS_PLAYERS, counted);
@@ -153,7 +154,7 @@ public final class ThreatScalingEvents {
     }
 
     private static void applyMobScaling(LivingEntity living, WorldProgressionState state) {
-        if (!(living instanceof Monster) || isScaledBoss(living) || isExcludedHostile(living)) return;
+        if (!(living instanceof Monster) || isScaledBoss(living) || isCustomEncounterEntity(living) || isExcludedHostile(living)) return;
         GameplayConfig.MobThreatScaling config = GameplayConfig.current().world.mobThreatScaling;
         if (!config.enabled) return;
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(living.getType());
@@ -197,12 +198,22 @@ public final class ThreatScalingEvents {
         return entity instanceof EnderDragon || entity instanceof WitherBoss || entity instanceof Warden;
     }
 
+    private static boolean isCustomEncounterEntity(LivingEntity entity) {
+        return entity instanceof InfernalCrucibleEntity
+            || entity instanceof AethericBulwarkEntity
+            || entity instanceof DeepboundWardenEntity
+            || entity instanceof EchoboundDragonEntity
+            || entity.getTags().contains(InfernalCrucibleEntity.MINION_TAG)
+            || entity.getTags().contains(AethericBulwarkEntity.MINION_TAG);
+    }
+
     private static boolean isExcludedHostile(LivingEntity entity) {
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         if (id == null) return false;
         String key = id.toString();
         return Arrays.asList(GameplayConfig.current().world.mobThreatScaling.excludedEntities).contains(key);
     }
+
     private static boolean isEligiblePlayer(ServerPlayer player) {
         return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator();
     }
@@ -212,5 +223,4 @@ public final class ThreatScalingEvents {
         int threshold = configuredCap > 0 ? Math.max(2, configuredCap) : 10;
         return countedPlayers >= threshold;
     }
-
 }

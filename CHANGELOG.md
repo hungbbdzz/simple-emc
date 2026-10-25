@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.0.2] - 2026-10-25
+
+### Fixed
+- **Vanilla 1024 Max HP Cap:** Implemented Virtual Encounter Health Pools for `InfernalCrucibleEntity` (1,800 HP), `AethericBulwarkEntity` (2,200 HP), and `DeepboundWardenEntity` (3,600 HP) mapped over 1000-HP physical health segments, bypassing Vanilla's 1024 max health attribute ceiling.
+- **Admin `/kill` & Invulnerability Bypasses:** Allowed damage types tagged with `DamageTypeTags.BYPASSES_INVULNERABILITY` (such as `/kill` or void damage) to immediately kill all four boss entities, bypassing crystal shields, arena bounds, and segment caps.
+- **Phantom AI Conflict (Echobound Dragon):** Overrode `registerGoals()` and `customServerAiStep()` to decouple from Vanilla `PhantomMoveControl` which was pulling the dragon toward `(0, 0, 0)` in outer End coordinates; added a dedicated 3D arena flight controller with smooth pitch/yaw interpolation.
+- **Citadel Respawn Fountain Loop:** Fixed `LastEchoCitadelService.ensureRespawnFountain` checking `center.above(3)` instead of `above(6)`, eliminating the 1,075-block regeneration every 4 ticks and preserving the Exit Portal and Dragon Egg after defeat.
+- **Vanilla Warden Brain Conflict:** Overrode `customServerAiStep()` in `DeepboundWardenEntity` to isolate custom skill states from Vanilla Warden Brain routines; actively updated anger levels via `increaseAngerAt()` to synchronize heartbeat audio and glowing tendril visuals.
+- **Infernal Crucible Movement & Skills:** Refactored `infernalDash` into a multi-tick charge with continuous hitbox collision; reactivated `rapidFireballBarrage`; and introduced a 28-tick telegraphed ground particle warning for `lavaGeyser`.
+- **Aetheric Bulwark Strike Timing & Floor Snapping:** Implemented `PendingStrike` queue respecting `visualTicks` telegraphed rings before detonation; added floor snapping for `spatialSwap` so the boss never teleports into open air; rebalanced `ironShellGuard` to Resistance III with dedicated cooldown.
+- **Target Filtering & Persistence:** Filtered out Creative and Spectator players across all bosses; added persistence flags (`removeWhenFarAway(false)`, `shouldDespawnInPeaceful(false)`) and weak reference server caching in `ArenaSummonService` to avoid leaks during world unload/reloads.
+- **Arena Exploits & Minion Limits:** Capped active minions (6 for Infernal Minions, 4 for Aetheric Shulkerlings) and automatically purged them upon boss death; excluded encounter bosses and minions from `ThreatScalingEvents`, `ArcaneMobEvents`, and `WorldProgressionEvents`.
+- **Altar Protection & Summon Eye:** Added `isBulwarkAltarProtected` checks to prevent altar destruction and fixed `PromotionBossEyeItem` on NeoForge 1.21.1 to correctly activate anywhere on the altar structure.
+
+---
+
 ## [2.0.1] - 2026-09-10
 
 ### Fixed
