@@ -48,11 +48,12 @@ import java.util.UUID;
 /** Compatibility-safe flying boss: independent from vanilla EnderDragonFight and the central island. */
 public final class EchoboundDragonEntity extends Phantom {
     public static final String CRYSTAL_TAG = "velorise_emc.echo_crystal";
-    private static final byte EVENT_SLAM_START = 60;
-    private static final byte EVENT_SLAM_IMPACT = 61;
-    private static final byte EVENT_ROAR_PULSE = 62;
-    private static final byte EVENT_CYCLONE_START = 63;
-    private static final byte EVENT_BEAM_CHARGE = 64;
+    // Avoid Vanilla EntityEvent IDs (e.g. 60 = POOF, 63 = SNIFFER_DIGGING_SOUND which casts to Sniffer in ClientPacketListener)
+    private static final byte EVENT_SLAM_START = 70;
+    private static final byte EVENT_SLAM_IMPACT = 71;
+    private static final byte EVENT_ROAR_PULSE = 72;
+    private static final byte EVENT_CYCLONE_START = 73;
+    private static final byte EVENT_BEAM_CHARGE = 74;
     private static final String SOUL_TAG = "velorise_emc.echo_soul";
     private static final int SKILL_BEAM = 0;
     private static final int SKILL_VOLLEY = 1;

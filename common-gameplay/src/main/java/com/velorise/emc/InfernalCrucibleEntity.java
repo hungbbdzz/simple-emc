@@ -47,8 +47,8 @@ public final class InfernalCrucibleEntity extends Blaze {
     /** Vanilla clamps MAX_HEALTH to 1024, so damage is resolved against a 1000-HP physical segment. */
     private static final float PHYSICAL_HEALTH_SEGMENT = 1_000.0F;
     private static final int MAX_ACTIVE_MINIONS = 6;
-    private static final byte EVENT_CAST_PULSE = 60;
-    private static final byte EVENT_DASH_BURST = 61;
+    private static final byte EVENT_CAST_PULSE = 70;
+    private static final byte EVENT_DASH_BURST = 71;
 
     private final ServerBossEvent bossBar = new ServerBossEvent(
         Component.translatable("entity.velorise_emc.infernal_crucible"),
