@@ -19,6 +19,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
@@ -114,6 +115,7 @@ public final class EchoboundDragonEntity extends Phantom {
     private int stuckTicks;
     private int emergencyTeleportCooldown;
     private int combatTeleportCooldown;
+    private UUID retaliationTargetId;
     private static final double ARENA_RADIUS = 58.0D;
 
     public EchoboundDragonEntity(EntityType<? extends Phantom> type, Level level) {
@@ -217,7 +219,7 @@ public final class EchoboundDragonEntity extends Phantom {
         previousCrystalCount = crystals.size();
         for (int i = 0; i < skillCooldowns.length; i++) if (skillCooldowns[i] > 0) skillCooldowns[i]--;
 
-        ServerPlayer target = nearestTarget(serverLevel);
+        LivingEntity target = nearestTarget(serverLevel);
         enforceArenaMovement(serverLevel, phase, target);
         tickStuckResolution(serverLevel, target);
         if (emergencyTeleportCooldown > 0) emergencyTeleportCooldown--;
@@ -320,7 +322,7 @@ public final class EchoboundDragonEntity extends Phantom {
     }
 
     private void attack(ServerLevel level, int phase) {
-        ServerPlayer target = nearestTarget(level);
+        LivingEntity target = nearestTarget(level);
         if (target == null) return;
         if (combatTeleportCooldown <= 0 && phase >= 1 && random.nextFloat() < (phase == 3 ? 0.24F : 0.14F)) {
             teleportAroundTarget(level, target, phase);
@@ -359,24 +361,50 @@ public final class EchoboundDragonEntity extends Phantom {
         if (skill != lastSkill && skillCooldowns[skill] <= 0) pool.add(skill);
     }
 
-    private boolean isValidTarget(ServerPlayer player) {
-        return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator();
+    private boolean isValidTarget(LivingEntity entity) {
+        if (entity == null || !entity.isAlive() || entity == this) return false;
+        if (entity instanceof ArmorStand) return false;
+        if (entity.getTags().contains(SOUL_TAG)) return false;
+        if (entity instanceof Player player) {
+            return !player.isCreative() && !player.isSpectator();
+        }
+        return true;
     }
 
-    private boolean isValidArenaTarget(ServerPlayer player) {
-        return isValidTarget(player) && insideArena(player.position(), ARENA_RADIUS);
+    private boolean isValidArenaTarget(LivingEntity entity) {
+        return isValidTarget(entity) && insideArena(entity.position(), ARENA_RADIUS);
     }
 
-    private ServerPlayer nearestTarget(ServerLevel level) {
-        return level.getEntitiesOfClass(ServerPlayer.class, new AABB(arena).inflate(ARENA_RADIUS, 80.0D, ARENA_RADIUS),
-                this::isValidArenaTarget).stream()
+    private LivingEntity nearestTarget(ServerLevel level) {
+        LivingEntity current = getTarget();
+        if (current != null && isValidArenaTarget(current)) {
+            return current;
+        }
+        if (retaliationTargetId != null) {
+            Entity entity = level.getEntity(retaliationTargetId);
+            if (entity instanceof LivingEntity retaliation && isValidArenaTarget(retaliation)) {
+                return retaliation;
+            }
+            retaliationTargetId = null;
+        }
+        ServerPlayer nearestPlayer = level.getEntitiesOfClass(ServerPlayer.class,
+                new AABB(arena).inflate(ARENA_RADIUS, 80.0D, ARENA_RADIUS), this::isValidArenaTarget).stream()
+            .min(Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
+        if (nearestPlayer != null) return nearestPlayer;
+
+        if (getLastHurtByMob() != null && isValidArenaTarget(getLastHurtByMob())) {
+            return getLastHurtByMob();
+        }
+
+        return level.getEntitiesOfClass(LivingEntity.class,
+                new AABB(arena).inflate(ARENA_RADIUS, 80.0D, ARENA_RADIUS), this::isValidArenaTarget).stream()
             .min(Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
     }
 
     /**
      * Smooth 3D orbital dragon flight controller that replaces Vanilla PhantomMoveControl.
      */
-    private void enforceArenaMovement(ServerLevel level, int phase, ServerPlayer target) {
+    private void enforceArenaMovement(ServerLevel level, int phase, LivingEntity target) {
         if (arena.equals(BlockPos.ZERO)) return;
         double cx = arena.getX() + 0.5D;
         double cz = arena.getZ() + 0.5D;
@@ -439,7 +467,7 @@ public final class EchoboundDragonEntity extends Phantom {
         hasImpulse = true;
     }
 
-    private void updateFlightOrientation(ServerPlayer target) {
+    private void updateFlightOrientation(LivingEntity target) {
         if (slamTicks > 0) return;
         Vec3 lookVec = null;
         if (beamChargeTicks > 0) {
@@ -466,7 +494,7 @@ public final class EchoboundDragonEntity extends Phantom {
         }
     }
 
-    private void tickStuckResolution(ServerLevel level, ServerPlayer target) {
+    private void tickStuckResolution(ServerLevel level, LivingEntity target) {
         if (tickCount % 20 != 0) return;
         Vec3 current = position();
         if (lastMovementCheck == Vec3.ZERO) {
@@ -495,7 +523,7 @@ public final class EchoboundDragonEntity extends Phantom {
         emergencyTeleportCooldown = 100;
     }
 
-    private void teleportAroundTarget(ServerLevel level, ServerPlayer target, int phase) {
+    private void teleportAroundTarget(ServerLevel level, LivingEntity target, int phase) {
         Vec3 from = position();
         double angle = random.nextDouble() * Math.PI * 2.0D;
         double radius = 10.0D + random.nextDouble() * (phase == 3 ? 10.0D : 7.0D);
@@ -551,7 +579,7 @@ public final class EchoboundDragonEntity extends Phantom {
         return dx * dx + dz * dz <= radius * radius;
     }
 
-    private void executeSkill(ServerLevel level, int phase, ServerPlayer target, int skill) {
+    private void executeSkill(ServerLevel level, int phase, LivingEntity target, int skill) {
         lastSkill = skill;
         switch (skill) {
             case SKILL_BEAM -> { startSonicBeam(level, target); skillCooldowns[skill] = 70; }
@@ -575,7 +603,7 @@ public final class EchoboundDragonEntity extends Phantom {
             || !pendingEnderRain.isEmpty();
     }
 
-    private void startVolley(ServerPlayer target, int projectileKind) {
+    private void startVolley(LivingEntity target, int projectileKind) {
         queuedProjectileKind = projectileKind;
         queuedShots = 3;
         nextQueuedShotTick = tickCount + 1;
@@ -584,14 +612,14 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void tickQueuedVolley(ServerLevel level, int phase) {
         if (queuedShots <= 0 || tickCount < nextQueuedShotTick) return;
-        Player target = queuedTarget == null ? null : level.getPlayerByUUID(queuedTarget);
-        if (!(target instanceof ServerPlayer sp) || !isValidArenaTarget(sp)) {
+        Entity target = queuedTarget == null ? null : level.getEntity(queuedTarget);
+        if (!(target instanceof LivingEntity living) || !isValidArenaTarget(living)) {
             queuedShots = 0;
             queuedTarget = null;
             return;
         }
         Vec3 origin = getEyePosition();
-        Vec3 leadPos = sp.getEyePosition().add(sp.getDeltaMovement().scale(4.0D));
+        Vec3 leadPos = living.getEyePosition().add(living.getDeltaMovement().scale(4.0D));
         Vec3 direction = leadPos.subtract(origin).normalize();
         EntityType<? extends AbstractHurtingProjectile> type = queuedProjectileKind == 1
             ? EntityType.DRAGON_FIREBALL : EntityType.WITHER_SKULL;
@@ -608,7 +636,7 @@ public final class EchoboundDragonEntity extends Phantom {
         if (queuedShots == 0) queuedTarget = null;
     }
 
-    private void startBreathDive(ServerLevel level, ServerPlayer target) {
+    private void startBreathDive(ServerLevel level, LivingEntity target) {
         breathDiveTicks = 42;
         breathTarget = target.getUUID();
         level.playSound(null, blockPosition(), SoundEvents.ENDER_DRAGON_GROWL, SoundSource.HOSTILE, 5.0F, 0.72F);
@@ -616,15 +644,15 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void tickBreathDive(ServerLevel level, int phase) {
         if (breathDiveTicks <= 0) return;
-        Player target = breathTarget == null ? null : level.getPlayerByUUID(breathTarget);
-        if (!(target instanceof ServerPlayer sp) || !isValidArenaTarget(sp)) {
+        Entity target = breathTarget == null ? null : level.getEntity(breathTarget);
+        if (!(target instanceof LivingEntity living) || !isValidArenaTarget(living)) {
             breathDiveTicks = 0;
             breathTarget = null;
             return;
         }
 
         Vec3 origin = getEyePosition();
-        Vec3 targetPoint = sp.position().add(0.0D, 1.0D, 0.0D);
+        Vec3 targetPoint = living.position().add(0.0D, 1.0D, 0.0D);
         Vec3 direction = targetPoint.subtract(origin).normalize();
         if (breathDiveTicks > 10) {
             Vec3 dive = direction.scale(1.15D + phase * 0.08D);
@@ -639,18 +667,18 @@ public final class EchoboundDragonEntity extends Phantom {
             level.sendParticles(ParticleTypes.DRAGON_BREATH, point.x, point.y, point.z,
                 2, 0.22D, 0.22D, 0.22D, 0.02D);
         }
-        if (breathDiveTicks % 8 == 0 && sp.distanceToSqr(this) <= 18.0D * 18.0D && hasLineOfSight(sp)) {
+        if (breathDiveTicks % 8 == 0 && living.distanceToSqr(this) <= 18.0D * 18.0D && hasLineOfSight(living)) {
             float breathDamage = 8.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase];
-            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class,
-                sp.getBoundingBox().inflate(3.5D), this::isValidArenaTarget)) {
-                player.hurt(level.damageSources().mobAttack(this), breathDamage);
+            for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class,
+                living.getBoundingBox().inflate(3.5D), this::isValidArenaTarget)) {
+                entity.hurt(level.damageSources().mobAttack(this), breathDamage);
             }
         }
         breathDiveTicks--;
         if (breathDiveTicks == 0) breathTarget = null;
     }
 
-    private void startSlam(ServerLevel level, ServerPlayer target) {
+    private void startSlam(ServerLevel level, LivingEntity target) {
         slamTicks = 64;
         slamX = target.getX();
         slamY = target.getY();
@@ -666,7 +694,7 @@ public final class EchoboundDragonEntity extends Phantom {
      * than clustering at the centre or directly under one player.
      */
     private void startEnderRain(ServerLevel level, int phase) {
-        ServerPlayer target = nearestTarget(level);
+        LivingEntity target = nearestTarget(level);
         if (target == null) return;
         enderRainMarksRemaining = 34 + phase * 8;
         nextEnderRainMarkTick = tickCount + 1;
@@ -682,8 +710,8 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void tickEnderRain(ServerLevel level, int phase) {
         if (enderRainMarksRemaining > 0 && tickCount < enderRainEndTick && tickCount >= nextEnderRainMarkTick) {
-            Player p = enderRainTarget == null ? null : level.getPlayerByUUID(enderRainTarget);
-            ServerPlayer tracked = p instanceof ServerPlayer sp && isValidArenaTarget(sp) ? sp : null;
+            Entity p = enderRainTarget == null ? null : level.getEntity(enderRainTarget);
+            LivingEntity tracked = p instanceof LivingEntity le && isValidArenaTarget(le) ? le : null;
             Vec3 focus = tracked != null
                 ? tracked.position() : new Vec3(arena.getX() + 0.5D, arena.getY() + 1.0D, arena.getZ() + 0.5D);
             double angle = random.nextDouble() * Math.PI * 2.0D;
@@ -701,8 +729,8 @@ public final class EchoboundDragonEntity extends Phantom {
         }
 
         if (!enderRainFinalQueued && enderRainEndTick > 0 && tickCount >= enderRainEndTick) {
-            Player p = enderRainTarget == null ? null : level.getPlayerByUUID(enderRainTarget);
-            ServerPlayer tracked = p instanceof ServerPlayer sp && isValidArenaTarget(sp) ? sp : nearestTarget(level);
+            Entity p = enderRainTarget == null ? null : level.getEntity(enderRainTarget);
+            LivingEntity tracked = p instanceof LivingEntity le && isValidArenaTarget(le) ? le : nearestTarget(level);
             Vec3 impact = tracked != null ? tracked.position() : new Vec3(arena.getX() + 0.5D, arena.getY() + 1.0D, arena.getZ() + 0.5D);
             pendingEnderRain.add(new EnderRainStrike(impact.x, arena.getY() + 1.05D, impact.z, tickCount + 12, true));
             enderRainFinalQueued = true;
@@ -762,14 +790,14 @@ public final class EchoboundDragonEntity extends Phantom {
                 impact.position().z, 260, 5.0D, 1.0D, 5.0D, 0.12D);
             level.playSound(null, impact.position().x, impact.position().y, impact.position().z,
                 SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 7.0F, 0.5F);
-            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class,
+            for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class,
                 new AABB(impact.position(), impact.position()).inflate(9.0D, 5.0D, 9.0D), this::isValidArenaTarget)) {
-                player.hurt(level.damageSources().mobAttack(this),
+                entity.hurt(level.damageSources().mobAttack(this),
                     32.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
-                Vec3 push = player.position().subtract(impact.position());
+                Vec3 push = entity.position().subtract(impact.position());
                 if (push.lengthSqr() > 0.01D) {
                     push = push.normalize().scale(1.8D);
-                    player.push(push.x, 0.85D, push.z);
+                    entity.push(push.x, 0.85D, push.z);
                 }
             }
             impactIterator.remove();
@@ -820,15 +848,15 @@ public final class EchoboundDragonEntity extends Phantom {
 
         double radius = 18.0D;
         float maximumDamage = 34.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase];
-        for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class,
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class,
             getBoundingBox().inflate(radius), this::isValidArenaTarget)) {
-            double distance = Math.sqrt(player.distanceToSqr(this));
+            double distance = Math.sqrt(entity.distanceToSqr(this));
             if (distance > radius) continue;
             double strength = Math.max(0.15D, 1.0D - distance / radius);
-            player.hurt(level.damageSources().mobAttack(this), (float) (maximumDamage * strength));
-            Vec3 push = player.position().subtract(position());
+            entity.hurt(level.damageSources().mobAttack(this), (float) (maximumDamage * strength));
+            Vec3 push = entity.position().subtract(position());
             if (push.lengthSqr() > 1.0E-4D) push = push.normalize().scale(2.8D * strength);
-            player.push(push.x, 0.75D + strength * 0.65D, push.z);
+            entity.push(push.x, 0.75D + strength * 0.65D, push.z);
         }
         for (int i = 0; i < 72; i++) {
             double angle = Math.PI * 2.0D * i / 72.0D;
@@ -841,7 +869,7 @@ public final class EchoboundDragonEntity extends Phantom {
         hasImpulse = true;
     }
 
-    private void startSonicBeam(ServerLevel level, ServerPlayer target) {
+    private void startSonicBeam(ServerLevel level, LivingEntity target) {
         beamChargeTicks = 20;
         beamTarget = target.getUUID();
         beamAim = target.getEyePosition();
@@ -850,9 +878,9 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void tickSonicBeam(ServerLevel level, int phase) {
         if (beamChargeTicks <= 0) return;
-        Player target = beamTarget == null ? null : level.getPlayerByUUID(beamTarget);
-        if (target instanceof ServerPlayer sp && isValidArenaTarget(sp) && beamChargeTicks > 8) {
-            beamAim = sp.getEyePosition();
+        Entity target = beamTarget == null ? null : level.getEntity(beamTarget);
+        if (target instanceof LivingEntity living && isValidArenaTarget(living) && beamChargeTicks > 8) {
+            beamAim = living.getEyePosition();
         }
         Vec3 origin = getEyePosition();
         Vec3 direction = beamAim.subtract(origin);
@@ -867,10 +895,10 @@ public final class EchoboundDragonEntity extends Phantom {
         float damage = 22.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase];
         Vec3 beamEnd = origin.add(direction.scale(96.0D));
         AABB beamBox = new AABB(origin, beamEnd).inflate(2.0D);
-        for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, beamBox, this::isValidArenaTarget)) {
-            Vec3 closest = closestPointOnSegment(origin, beamEnd, player.getEyePosition());
-            if (closest.distanceToSqr(player.getEyePosition()) <= 2.5D * 2.5D) {
-                player.hurt(level.damageSources().mobAttack(this), damage);
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, beamBox, this::isValidArenaTarget)) {
+            Vec3 closest = closestPointOnSegment(origin, beamEnd, entity.getEyePosition());
+            if (closest.distanceToSqr(entity.getEyePosition()) <= 2.5D * 2.5D) {
+                entity.hurt(level.damageSources().mobAttack(this), damage);
             }
         }
         for (int i = 1; i <= 48; i++) {
@@ -911,14 +939,14 @@ public final class EchoboundDragonEntity extends Phantom {
         if (wingCycloneTicks % 6 == 0) {
             Vec3 groundCenter = new Vec3(getX(), floorY, getZ());
             AABB area = new AABB(groundCenter, groundCenter).inflate(18.0D, 14.0D, 18.0D);
-            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, area, this::isValidArenaTarget)) {
-                Vec3 push = new Vec3(player.getX() - getX(), 0.0D, player.getZ() - getZ());
+            for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, area, this::isValidArenaTarget)) {
+                Vec3 push = new Vec3(entity.getX() - getX(), 0.0D, entity.getZ() - getZ());
                 double horizDistSqr = push.lengthSqr();
                 if (horizDistSqr < 0.01D || horizDistSqr > 18.0D * 18.0D) continue;
                 push = push.normalize().scale(1.4D + phase * 0.18D);
-                player.push(push.x, 0.25D, push.z);
+                entity.push(push.x, 0.25D, push.z);
                 if (horizDistSqr < 8.5D * 8.5D) {
-                    player.hurt(level.damageSources().mobAttack(this), 6.0F + phase * 2.0F);
+                    entity.hurt(level.damageSources().mobAttack(this), 6.0F + phase * 2.0F);
                 }
             }
         }
@@ -926,12 +954,12 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void startEchoChains(ServerLevel level) {
         chainedPlayers.clear();
-        List<ServerPlayer> players = level.getEntitiesOfClass(ServerPlayer.class,
+        List<LivingEntity> targets = level.getEntitiesOfClass(LivingEntity.class,
             new AABB(arena).inflate(80.0D), this::isValidArenaTarget);
-        players.sort(Comparator.comparingDouble(this::distanceToSqr));
-        for (int i = 0; i < Math.min(2, players.size()); i++) chainedPlayers.add(players.get(i).getUUID());
+        targets.sort(Comparator.comparingDouble(this::distanceToSqr));
+        for (int i = 0; i < Math.min(2, targets.size()); i++) chainedPlayers.add(targets.get(i).getUUID());
         if (chainedPlayers.size() == 1) {
-            ServerPlayer solo = players.get(0);
+            LivingEntity solo = targets.get(0);
             chainAnchor = new Vec3(solo.getX(), arena.equals(BlockPos.ZERO) ? solo.getY() : arena.getY() + 1.0D, solo.getZ());
         }
         chainTicks = 80;
@@ -941,21 +969,21 @@ public final class EchoboundDragonEntity extends Phantom {
     private void tickEchoChains(ServerLevel level, int phase) {
         if (chainTicks <= 0) return;
         chainTicks--;
-        List<ServerPlayer> players = new ArrayList<>();
+        List<LivingEntity> targets = new ArrayList<>();
         for (UUID id : chainedPlayers) {
-            Player found = level.getPlayerByUUID(id);
-            if (found instanceof ServerPlayer p && isValidArenaTarget(p)) players.add(p);
+            Entity found = level.getEntity(id);
+            if (found instanceof LivingEntity p && isValidArenaTarget(p)) targets.add(p);
         }
-        if (players.isEmpty()) { chainTicks = 0; return; }
-        Vec3 a = players.get(0).getEyePosition();
-        Vec3 b = players.size() > 1 ? players.get(1).getEyePosition() : chainAnchor;
+        if (targets.isEmpty()) { chainTicks = 0; return; }
+        Vec3 a = targets.get(0).getEyePosition();
+        Vec3 b = targets.size() > 1 ? targets.get(1).getEyePosition() : chainAnchor;
         Vec3 delta = b.subtract(a);
         for (int i = 0; i <= 20; i++) {
             Vec3 p = a.add(delta.scale(i / 20.0D));
             level.sendParticles(ParticleTypes.SCULK_SOUL, p.x, p.y, p.z, 1, 0, 0, 0, 0);
         }
         if (chainTicks == 0 && a.distanceTo(b) > 10.0D) {
-            for (ServerPlayer p : players) {
+            for (LivingEntity p : targets) {
                 p.hurt(level.damageSources().mobAttack(this), 14.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
             }
             level.playSound(null, arena, SoundEvents.WARDEN_SONIC_BOOM, SoundSource.HOSTILE, 3.0F, 1.25F);
@@ -984,13 +1012,13 @@ public final class EchoboundDragonEntity extends Phantom {
             level.sendParticles(ParticleTypes.SONIC_BOOM, p.x, p.y, p.z, 1, 0, 0, 0, 0);
         }
         AABB sweepBox = new AABB(origin, sweepEnd).inflate(2.5D, 3.5D, 2.5D);
-        for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, sweepBox, this::isValidArenaTarget)) {
-            Vec3 playerHorizontal = new Vec3(player.getX(), floorY, player.getZ());
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, sweepBox, this::isValidArenaTarget)) {
+            Vec3 playerHorizontal = new Vec3(entity.getX(), floorY, entity.getZ());
             Vec3 closest = closestPointOnSegment(origin, sweepEnd, playerHorizontal);
-            if (closest.distanceToSqr(playerHorizontal) <= 2.25D * 2.25D && Math.abs(player.getY() - floorY) <= 3.5D) {
-                if (sweepHitThisPulse.add(player.getUUID())) {
-                    player.hurt(level.damageSources().mobAttack(this), 10.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
-                    player.push(dir.x * 1.2D, 0.35D, dir.z * 1.2D);
+            if (closest.distanceToSqr(playerHorizontal) <= 2.25D * 2.25D && Math.abs(entity.getY() - floorY) <= 3.5D) {
+                if (sweepHitThisPulse.add(entity.getUUID())) {
+                    entity.hurt(level.damageSources().mobAttack(this), 10.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
+                    entity.push(dir.x * 1.2D, 0.35D, dir.z * 1.2D);
                 }
             }
         }
@@ -1014,11 +1042,11 @@ public final class EchoboundDragonEntity extends Phantom {
         }
         if (voidCollapseTicks % 10 != 0) return;
         Vec3 center = Vec3.atCenterOf(arena);
-        for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class,
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class,
             new AABB(arena).inflate(52.0D), this::isValidArenaTarget)) {
-            double horizontal = new Vec3(player.getX() - center.x, 0.0D, player.getZ() - center.z).length();
+            double horizontal = new Vec3(entity.getX() - center.x, 0.0D, entity.getZ() - center.z).length();
             boolean unsafe = outerUnsafe ? horizontal > safeRadius : horizontal < safeRadius;
-            if (unsafe) player.hurt(level.damageSources().mobAttack(this), 7.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
+            if (unsafe) entity.hurt(level.damageSources().mobAttack(this), 7.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
         }
     }
 
@@ -1045,14 +1073,14 @@ public final class EchoboundDragonEntity extends Phantom {
         soulHarvestTicks--;
         List<ArmorStand> souls = level.getEntitiesOfClass(ArmorStand.class,
             new AABB(arena).inflate(80.0D), e -> e.isAlive() && e.getTags().contains(SOUL_TAG));
-        List<ServerPlayer> arenaPlayers = level.getEntitiesOfClass(ServerPlayer.class,
+        List<LivingEntity> arenaTargets = level.getEntitiesOfClass(LivingEntity.class,
             new AABB(arena).inflate(ARENA_RADIUS), this::isValidArenaTarget);
 
         for (ArmorStand soul : souls) {
-            // Allow players to shatter Echo Souls by intercepting them before they reach the dragon.
+            // Allow players and arena targets to shatter Echo Souls by intercepting them before they reach the dragon.
             boolean shattered = false;
-            for (ServerPlayer player : arenaPlayers) {
-                if (player.distanceToSqr(soul) <= 2.6D * 2.6D) {
+            for (LivingEntity entity : arenaTargets) {
+                if (entity.distanceToSqr(soul) <= 2.6D * 2.6D) {
                     level.sendParticles(ParticleTypes.SCULK_CHARGE_POP, soul.getX(), soul.getY() + 0.8D, soul.getZ(),
                         24, 0.4D, 0.4D, 0.4D, 0.05D);
                     level.playSound(null, soul.blockPosition(), SoundEvents.AMETHYST_CLUSTER_BREAK,
@@ -1079,7 +1107,7 @@ public final class EchoboundDragonEntity extends Phantom {
         if (soulHarvestTicks == 0) for (ArmorStand soul : souls) soul.discard();
     }
 
-    private void devourEcho(ServerLevel level, ServerPlayer target) {
+    private void devourEcho(ServerLevel level, LivingEntity target) {
         Vec3 behind = target.getLookAngle().scale(-6.0D);
         Vec3 destination = new Vec3(target.getX() + behind.x, target.getY() + 5.0D, target.getZ() + behind.z);
         performTeleport(level, destination, false);
@@ -1102,9 +1130,9 @@ public final class EchoboundDragonEntity extends Phantom {
             level.sendParticles(ParticleTypes.SCULK_SOUL, blast.position.x, blast.position.y, blast.position.z, 3, 0.8D, 0.8D, 0.8D, 0.03D);
             if (tickCount < blast.detonateTick) continue;
             level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, blast.position.x, blast.position.y, blast.position.z, 1, 0, 0, 0, 0);
-            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class,
+            for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class,
                 new AABB(blast.position, blast.position).inflate(6.0D), this::isValidArenaTarget)) {
-                player.hurt(level.damageSources().mobAttack(this), 12.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
+                entity.hurt(level.damageSources().mobAttack(this), 12.0F * LastEchoProfile.PHASE_DAMAGE_MULTIPLIER[phase]);
             }
             it.remove();
         }
@@ -1118,7 +1146,7 @@ public final class EchoboundDragonEntity extends Phantom {
 
     private void tickCombo(ServerLevel level, int phase) {
         if (comboId == 0 || tickCount < comboNextTick || isBusy()) return;
-        ServerPlayer target = nearestTarget(level);
+        LivingEntity target = nearestTarget(level);
         if (target == null) { comboId = 0; return; }
         if (comboId == 1) { // Mark and Dive
             if (comboStep == 0) { executeSkill(level, phase, target, SKILL_RAIN); comboNextTick = tickCount + 80; }
@@ -1167,13 +1195,20 @@ public final class EchoboundDragonEntity extends Phantom {
         if (!(level() instanceof ServerLevel serverLevel)) return super.hurt(source, amount);
         boolean bypasses = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
         if (!bypasses) {
-            if (source.getEntity() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) return false;
+            if (source.getEntity() instanceof LivingEntity attacker && !insideArena(attacker.position(), ARENA_RADIUS)) return false;
             List<EndCrystal> crystals = activeCrystals(serverLevel);
             // The boss uses its invulnerable texture whenever an Echo Crystal is active,
             // so combat must match that visual state in every crystal phase.
             if (!crystals.isEmpty()) return false;
         }
         if (!scaled) scaleForPlayers(serverLevel);
+
+        Entity directAttacker = source.getEntity();
+        if (directAttacker instanceof LivingEntity attacker && attacker != this && isValidArenaTarget(attacker)) {
+            retaliationTargetId = attacker.getUUID();
+            setTarget(attacker);
+            setLastHurtByMob(attacker);
+        }
 
         if (bypasses && amount >= encounterHealth) {
             encounterHealth = 0.0F;
@@ -1365,6 +1400,7 @@ public final class EchoboundDragonEntity extends Phantom {
         tag.putFloat("EncounterMaxHealth", encounterMaxHealth);
         tag.putInt("LastObservedPhase", lastObservedPhase);
         tag.putBoolean("FinalRefrainUsed", finalRefrainUsed);
+        if (retaliationTargetId != null) tag.putUUID("RetaliationTargetId", retaliationTargetId);
     }
 
     @Override
@@ -1377,6 +1413,7 @@ public final class EchoboundDragonEntity extends Phantom {
         encounterMaxHealth = tag.getFloat("EncounterMaxHealth");
         if (tag.contains("LastObservedPhase")) lastObservedPhase = tag.getInt("LastObservedPhase");
         finalRefrainUsed = tag.getBoolean("FinalRefrainUsed");
+        if (tag.hasUUID("RetaliationTargetId")) retaliationTargetId = tag.getUUID("RetaliationTargetId");
         if (scaled && encounterMaxHealth > 0.0F && encounterHealth > 0.0F) {
             if (getAttribute(Attributes.MAX_HEALTH) != null) {
                 getAttribute(Attributes.MAX_HEALTH).setBaseValue(PHYSICAL_HEALTH_SEGMENT);

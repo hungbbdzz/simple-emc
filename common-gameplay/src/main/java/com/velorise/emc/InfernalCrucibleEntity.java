@@ -16,7 +16,9 @@ import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -65,6 +67,7 @@ public final class InfernalCrucibleEntity extends Blaze {
     private Vec3 dashVelocity = Vec3.ZERO;
     private UUID dashTargetId;
     private boolean dashDealtDamage;
+    private UUID retaliationTargetId;
 
     private final List<PendingGeyser> pendingGeysers = new ArrayList<>();
 
@@ -127,7 +130,7 @@ public final class InfernalCrucibleEntity extends Blaze {
         tickQueuedFireballs(serverLevel);
         tickPendingGeysers(serverLevel);
 
-        ServerPlayer target = findCombatTarget(serverLevel);
+        LivingEntity target = findCombatTarget(serverLevel);
         setTarget(target);
 
         if (dashTicks > 0) {
@@ -140,7 +143,7 @@ public final class InfernalCrucibleEntity extends Blaze {
             lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
             flyKeepDistance(serverLevel, target);
         } else {
-            hoverIdleAtCenter(serverLevel);
+            wanderAroundArena(serverLevel);
             return;
         }
 
@@ -179,18 +182,46 @@ public final class InfernalCrucibleEntity extends Blaze {
         }
     }
 
-    private ServerPlayer findCombatTarget(ServerLevel level) {
-        if (getTarget() instanceof ServerPlayer current && isValidArenaTarget(current)) {
+    private LivingEntity findCombatTarget(ServerLevel level) {
+        LivingEntity current = getTarget();
+        if (current != null && isValidCombatTarget(current)) {
             return current;
         }
+
+        if (retaliationTargetId != null) {
+            Entity ent = level.getEntity(retaliationTargetId);
+            if (ent instanceof LivingEntity le && isValidCombatTarget(le)) {
+                return le;
+            }
+            retaliationTargetId = null;
+        }
+
         Player nearest = level.getNearestPlayer(getX(), getY(), getZ(), 56.0D,
             entity -> entity instanceof ServerPlayer sp && isValidArenaTarget(sp));
-        return nearest instanceof ServerPlayer sp ? sp : null;
+        if (nearest instanceof ServerPlayer sp) {
+            return sp;
+        }
+
+        LivingEntity lastHurt = getLastHurtByMob();
+        if (lastHurt != null && isValidCombatTarget(lastHurt)) {
+            return lastHurt;
+        }
+
+        return null;
     }
 
     private boolean isValidArenaTarget(ServerPlayer player) {
         return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator()
             && insideArena(player.position(), ARENA_RADIUS);
+    }
+
+    private boolean isValidCombatTarget(LivingEntity entity) {
+        if (entity == null || !entity.isAlive() || entity == this) return false;
+        if (entity instanceof Player player) {
+            return !player.isCreative() && !player.isSpectator() && insideArena(player.position(), ARENA_RADIUS);
+        }
+        if (entity.getTags().contains(MINION_TAG)) return false;
+        return insideArena(entity.position(), ARENA_RADIUS + 4.0D);
     }
 
     /** Gradually launches queued fireballs from above the boss's head one by one. */
@@ -210,7 +241,7 @@ public final class InfernalCrucibleEntity extends Blaze {
         if (--fireballLaunchTimer > 0) return;
         fireballLaunchTimer = 7;
 
-        ServerPlayer target = findCombatTarget(level);
+        LivingEntity target = findCombatTarget(level);
         if (target == null) {
             queuedFireballs = 0;
             return;
@@ -238,7 +269,7 @@ public final class InfernalCrucibleEntity extends Blaze {
     }
 
     /** Infernal Dash: Propels the boss across the arena through the target over 14 ticks. */
-    private void infernalDash(ServerLevel level, ServerPlayer target) {
+    private void infernalDash(ServerLevel level, LivingEntity target) {
         level.playSound(null, blockPosition(), SoundEvents.BLAZE_SHOOT, SoundSource.HOSTILE, 3.0F, 0.5F);
         level.playSound(null, blockPosition(), SoundEvents.FIRECHARGE_USE, SoundSource.HOSTILE, 2.5F, 0.8F);
 
@@ -270,28 +301,28 @@ public final class InfernalCrucibleEntity extends Blaze {
 
         if (!dashDealtDamage) {
             AABB hitBox = getBoundingBox().inflate(2.2D, 1.8D, 2.2D);
-            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, hitBox, this::isValidArenaTarget)) {
+            for (LivingEntity victim : level.getEntitiesOfClass(LivingEntity.class, hitBox, this::isValidCombatTarget)) {
                 dashDealtDamage = true;
-                player.hurt(level.damageSources().mobAttack(this), 22.0F + phase * 3.0F);
-                player.setRemainingFireTicks(Math.max(player.getRemainingFireTicks(), 100));
+                victim.hurt(level.damageSources().mobAttack(this), 22.0F + phase * 3.0F);
+                victim.setRemainingFireTicks(Math.max(victim.getRemainingFireTicks(), 100));
                 Vec3 push = dashVelocity.normalize().scale(1.45D);
-                player.push(push.x, 0.45D, push.z);
-                level.playSound(null, player.getX(), player.getY(), player.getZ(),
+                victim.push(push.x, 0.45D, push.z);
+                level.playSound(null, victim.getX(), victim.getY(), victim.getZ(),
                     SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 2.0F, 1.2F);
             }
         }
 
         if (dashTicks <= 0 && dashTargetId != null) {
-            Player p = level.getPlayerByUUID(dashTargetId);
-            if (p instanceof ServerPlayer sp && isValidArenaTarget(sp)) {
-                getLookControl().setLookAt(sp, 180.0F, 180.0F);
+            Entity ent = level.getEntity(dashTargetId);
+            if (ent instanceof LivingEntity le && isValidCombatTarget(le)) {
+                getLookControl().setLookAt(le, 180.0F, 180.0F);
             }
             dashTargetId = null;
         }
     }
 
     /** Smooth levitating flight strafing keeping 12..16 blocks distance in mid-air while staying inside the arena. */
-    private void flyKeepDistance(ServerLevel level, Player target) {
+    private void flyKeepDistance(ServerLevel level, LivingEntity target) {
         Vec3 bossPos = position();
         Vec3 targetPos = target.position();
         Vec3 toTarget = targetPos.subtract(bossPos);
@@ -316,7 +347,7 @@ public final class InfernalCrucibleEntity extends Blaze {
 
         Vec3 moveVec = radialDir.scale(radialSpeed).add(tangentDir.scale(tangentSpeed)).add(0.0D, dy, 0.0D);
 
-        // Prevent the player from pushing the boss out of the arena boundary to force an arena reset.
+        // Prevent pushing the boss out of the arena boundary to force an arena reset.
         if (!arena.equals(BlockPos.ZERO)) {
             Vec3 center = new Vec3(arena.getX() + 0.5D, getY(), arena.getZ() + 0.5D);
             Vec3 nextHorizontal = new Vec3(bossPos.x + moveVec.x - center.x, 0.0D, bossPos.z + moveVec.z - center.z);
@@ -336,24 +367,44 @@ public final class InfernalCrucibleEntity extends Blaze {
         }
     }
 
-    private void hoverIdleAtCenter(ServerLevel level) {
+    private void wanderAroundArena(ServerLevel level) {
         if (arena.equals(BlockPos.ZERO)) {
-            setDeltaMovement(getDeltaMovement().scale(0.6D));
+            setDeltaMovement(getDeltaMovement().scale(0.8D));
             return;
         }
-        Vec3 home = new Vec3(arena.getX() + 0.5D, arena.getY() + 5.5D + Math.sin(tickCount * 0.05D) * 0.6D, arena.getZ() + 0.5D);
-        Vec3 delta = home.subtract(position());
-        if (delta.lengthSqr() > 0.25D) {
-            Vec3 step = delta.normalize().scale(Math.min(0.30D, delta.length() * 0.15D));
-            setDeltaMovement(step);
+
+        double patrolAngle = (tickCount * 0.022D);
+        double patrolRadius = 12.0D + Math.sin(tickCount * 0.01D) * 5.0D;
+        double targetX = arena.getX() + 0.5D + Math.cos(patrolAngle) * patrolRadius;
+        double targetZ = arena.getZ() + 0.5D + Math.sin(patrolAngle) * patrolRadius;
+        double targetY = arena.getY() + 5.5D + Math.sin(tickCount * 0.04D) * 1.2D;
+
+        Vec3 targetPos = new Vec3(targetX, targetY, targetZ);
+        Vec3 toTarget = targetPos.subtract(position());
+        double dist = toTarget.length();
+
+        Vec3 moveVec;
+        if (dist > 0.3D) {
+            moveVec = toTarget.normalize().scale(Math.min(0.26D, dist * 0.1D));
         } else {
-            setDeltaMovement(Vec3.ZERO);
+            moveVec = new Vec3(-Math.sin(patrolAngle) * 0.22D, Math.cos(tickCount * 0.04D) * 0.04D, Math.cos(patrolAngle) * 0.22D);
         }
+
+        setDeltaMovement(moveVec);
         hasImpulse = true;
+
+        if (moveVec.horizontalDistanceSqr() > 0.005D) {
+            getLookControl().setLookAt(getX() + moveVec.x * 5.0D, getY() + moveVec.y * 5.0D, getZ() + moveVec.z * 5.0D, 15.0F, 15.0F);
+        }
+
+        if (tickCount % 6 == 0) {
+            level.sendParticles(ParticleTypes.FLAME, getX(), getY() - 0.2D, getZ(), 2, 0.2D, 0.2D, 0.2D, 0.01D);
+            level.sendParticles(ParticleTypes.SMOKE, getX(), getY() - 0.1D, getZ(), 1, 0.15D, 0.15D, 0.15D, 0.01D);
+        }
     }
 
     /** Rapid Fireball Barrage: Fires a stream of rapid SmallFireballs directly at target player. */
-    private void rapidFireballBarrage(ServerLevel level, ServerPlayer target) {
+    private void rapidFireballBarrage(ServerLevel level, LivingEntity target) {
         level.playSound(null, blockPosition(), SoundEvents.BLAZE_SHOOT, SoundSource.HOSTILE, 2.5F, 1.0F);
         Vec3 origin = new Vec3(getX(), getY() + 1.2D, getZ());
         Vec3 dir = target.getEyePosition().subtract(origin).normalize();
@@ -387,7 +438,7 @@ public final class InfernalCrucibleEntity extends Blaze {
     }
 
     /** Summon Mini Blazes: Spawns 2..3 aggressive Blaze minions around the boss, capped at MAX_ACTIVE_MINIONS. */
-    private void summonMiniBlazes(ServerLevel level, ServerPlayer target) {
+    private void summonMiniBlazes(ServerLevel level, LivingEntity target) {
         List<Blaze> activeMinions = level.getEntitiesOfClass(Blaze.class,
             getBoundingBox().inflate(ARENA_RADIUS + 8.0D),
             e -> e != this && e.isAlive() && e.getTags().contains(MINION_TAG));
@@ -417,7 +468,7 @@ public final class InfernalCrucibleEntity extends Blaze {
     }
 
     /** Lava Geyser: Marks 1..3 ground locations with a 28-tick warning telegraph before erupting. */
-    private void lavaGeyser(ServerLevel level, ServerPlayer target) {
+    private void lavaGeyser(ServerLevel level, LivingEntity target) {
         level.playSound(null, target.blockPosition(), SoundEvents.BLAZE_SHOOT, SoundSource.HOSTILE, 2.8F, 0.7F);
         double floorY = arena.equals(BlockPos.ZERO) ? target.getY() : Math.max(arena.getY(), target.getY());
         pendingGeysers.add(new PendingGeyser(new Vec3(target.getX(), floorY, target.getZ()), 28));
@@ -455,13 +506,13 @@ public final class InfernalCrucibleEntity extends Blaze {
             level.sendParticles(ParticleTypes.FLAME, pos.x, pos.y + 0.2D, pos.z, 70, 2.0D, 2.2D, 2.0D, 0.08D);
 
             AABB area = new AABB(pos.x - 3.4D, pos.y - 1.5D, pos.z - 3.4D, pos.x + 3.4D, pos.y + 5.0D, pos.z + 3.4D);
-            for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, area, this::isValidArenaTarget)) {
-                double dx = player.getX() - pos.x;
-                double dz = player.getZ() - pos.z;
+            for (LivingEntity victim : level.getEntitiesOfClass(LivingEntity.class, area, this::isValidCombatTarget)) {
+                double dx = victim.getX() - pos.x;
+                double dz = victim.getZ() - pos.z;
                 if (dx * dx + dz * dz <= 3.4D * 3.4D) {
-                    player.hurt(level.damageSources().mobAttack(this), 18.0F + phase * 2.0F);
-                    player.setRemainingFireTicks(Math.max(player.getRemainingFireTicks(), 100));
-                    player.push(0.0D, 0.55D, 0.0D);
+                    victim.hurt(level.damageSources().mobAttack(this), 18.0F + phase * 2.0F);
+                    victim.setRemainingFireTicks(Math.max(victim.getRemainingFireTicks(), 100));
+                    victim.push(0.0D, 0.55D, 0.0D);
                 }
             }
             it.remove();
@@ -469,7 +520,7 @@ public final class InfernalCrucibleEntity extends Blaze {
     }
 
     /** Heavy Fireball Volley: Fires a massive 3-way LargeFireball cluster! */
-    private void heavyFireballVolley(ServerLevel level, ServerPlayer target) {
+    private void heavyFireballVolley(ServerLevel level, LivingEntity target) {
         level.playSound(null, blockPosition(), SoundEvents.GHAST_SHOOT, SoundSource.HOSTILE, 3.0F, 0.75F);
         Vec3 origin = new Vec3(getX(), getY() + 1.5D, getZ());
         Vec3 dir = target.getEyePosition().subtract(origin).normalize();
@@ -506,10 +557,10 @@ public final class InfernalCrucibleEntity extends Blaze {
         level.playSound(null, blockPosition(), SoundEvents.BLAZE_SHOOT, SoundSource.HOSTILE, 3.5F, 1.4F);
         level.sendParticles(ParticleTypes.FLASH, getX(), getY() + 1.5D, getZ(), 3, 0.2D, 0.2D, 0.2D, 0.0D);
         level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, getX(), getY() + 1.0D, getZ(), 160, 6.0D, 2.0D, 6.0D, 0.08D);
-        for (ServerPlayer player : level.getEntitiesOfClass(ServerPlayer.class, new AABB(blockPosition()).inflate(16.0D), this::isValidArenaTarget)) {
-            if (player.distanceToSqr(this) <= 16.0D * 16.0D) {
-                player.hurt(level.damageSources().mobAttack(this), 24.0F);
-                player.setRemainingFireTicks(Math.max(player.getRemainingFireTicks(), 100));
+        for (LivingEntity victim : level.getEntitiesOfClass(LivingEntity.class, new AABB(blockPosition()).inflate(16.0D), this::isValidCombatTarget)) {
+            if (victim.distanceToSqr(this) <= 16.0D * 16.0D) {
+                victim.hurt(level.damageSources().mobAttack(this), 24.0F);
+                victim.setRemainingFireTicks(Math.max(victim.getRemainingFireTicks(), 100));
             }
         }
         addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 120, 1));
@@ -524,8 +575,9 @@ public final class InfernalCrucibleEntity extends Blaze {
             dashTicks = 0;
             getNavigation().stop();
             setTarget(null);
+            retaliationTargetId = null;
         }
-        if (getTarget() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) {
+        if (getTarget() != null && !isValidCombatTarget(getTarget())) {
             setTarget(null);
             getNavigation().stop();
         }
@@ -564,6 +616,14 @@ public final class InfernalCrucibleEntity extends Blaze {
         boolean accepted = super.hurt(source, Math.min(Math.max(0.0F, amount), PHYSICAL_HEALTH_SEGMENT - 1.0F));
         if (!accepted) return false;
 
+        LivingEntity attacker = source.getEntity() instanceof LivingEntity le ? le
+            : (source.getDirectEntity() instanceof LivingEntity dle ? dle : null);
+        if (attacker != null && attacker != this && !attacker.getTags().contains(MINION_TAG)) {
+            retaliationTargetId = attacker.getUUID();
+            setTarget(attacker);
+            setLastHurtByMob(attacker);
+        }
+
         if (source.getEntity() != null) {
             level().playSound(null, blockPosition(), SoundEvents.BLAZE_HURT, SoundSource.HOSTILE, 2.5F, 0.7F);
         }
@@ -589,6 +649,7 @@ public final class InfernalCrucibleEntity extends Blaze {
         tag.putFloat("EncounterHealth", encounterHealth);
         tag.putFloat("EncounterMaxHealth", encounterMaxHealth);
         tag.putInt("LastPhase", lastPhase);
+        if (retaliationTargetId != null) tag.putUUID("RetaliationTarget", retaliationTargetId);
     }
 
     @Override
@@ -599,6 +660,7 @@ public final class InfernalCrucibleEntity extends Blaze {
         if (tag.contains("EncounterHealth")) encounterHealth = tag.getFloat("EncounterHealth");
         if (tag.contains("EncounterMaxHealth")) encounterMaxHealth = tag.getFloat("EncounterMaxHealth");
         if (tag.contains("LastPhase")) lastPhase = tag.getInt("LastPhase");
+        if (tag.hasUUID("RetaliationTarget")) retaliationTargetId = tag.getUUID("RetaliationTarget");
         if (initializedHealth && encounterMaxHealth > 0.0F && encounterHealth > 0.0F) {
             setHealth(PHYSICAL_HEALTH_SEGMENT);
         } else {

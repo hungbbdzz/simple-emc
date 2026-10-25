@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [2.0.2] - 2026-10-25
 
+### Added
+- **Autonomous Arena Wandering & Retaliation AI (All 4 Bosses):**
+  - All four bosses (`InfernalCrucibleEntity`, `AethericBulwarkEntity`, `DeepboundWardenEntity`, `EchoboundDragonEntity`) now actively wander, orbit, and patrol their arenas when no survival players are present, instead of remaining idle or freezing.
+  - Added revenge/retaliation targeting: when any mob or entity attacks a boss (e.g. Iron Golems, skeletons, Withers, or other mod bosses), the boss immediately retaliates, targets the attacker, and executes combat skills against them.
+  - Minions spawned by bosses remain protected from friendly-fire targeting.
+  - Prevented Vanilla Warden inactivity dig-despawn while bound to an arena, keeping the Warden patrolling and responsive.
+  - Generalized all skill targeting and damage areas to support any `LivingEntity` combatant while preserving survival player targeting priority.
+
 ### Fixed
 - **Vanilla 1024 Max HP Cap:** Implemented Virtual Encounter Health Pools for `InfernalCrucibleEntity` (1,800 HP), `AethericBulwarkEntity` (2,200 HP), and `DeepboundWardenEntity` (3,600 HP) mapped over 1000-HP physical health segments, bypassing Vanilla's 1024 max health attribute ceiling.
 - **Admin `/kill` & Invulnerability Bypasses:** Allowed damage types tagged with `DamageTypeTags.BYPASSES_INVULNERABILITY` (such as `/kill` or void damage) to immediately kill all four boss entities, bypassing crystal shields, arena bounds, and segment caps.

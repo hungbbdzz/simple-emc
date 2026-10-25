@@ -21,6 +21,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -62,6 +63,8 @@ public final class DeepboundWardenEntity extends Warden {
     private boolean allowedToDespawn;
     private BlockPos arena = BlockPos.ZERO;
     private UUID engagedTargetId;
+    private UUID retaliationTargetId;
+    private int wanderTimer;
     private UUID skillTargetId;
     private Vec3 skillAim = Vec3.ZERO;
     private Skill pendingSkill = Skill.NONE;
@@ -146,9 +149,10 @@ public final class DeepboundWardenEntity extends Warden {
         updatePhase();
         updateBossBarPresentation();
 
-        ServerPlayer target = findCombatTarget(serverLevel);
+        LivingEntity target = findCombatTarget(serverLevel);
         if (target == null) {
             clearCombatState();
+            wanderArena(serverLevel);
             return;
         }
 
@@ -253,18 +257,35 @@ public final class DeepboundWardenEntity extends Warden {
         }
     }
 
-    private ServerPlayer findCombatTarget(ServerLevel serverLevel) {
+    private LivingEntity findCombatTarget(ServerLevel serverLevel) {
         if (engagedTargetId != null) {
-            Player engaged = serverLevel.getPlayerByUUID(engagedTargetId);
-            if (engaged instanceof ServerPlayer engagedServerPlayer && isValidArenaTarget(engagedServerPlayer)) {
-                return engagedServerPlayer;
+            Entity engaged = serverLevel.getEntity(engagedTargetId);
+            if (engaged instanceof LivingEntity living && isValidCombatTarget(living)) {
+                return living;
             }
             engagedTargetId = null;
         }
 
+        if (retaliationTargetId != null) {
+            Entity ent = serverLevel.getEntity(retaliationTargetId);
+            if (ent instanceof LivingEntity le && isValidCombatTarget(le)) {
+                return le;
+            }
+            retaliationTargetId = null;
+        }
+
         Player nearest = serverLevel.getNearestPlayer(getX(), getY(), getZ(), 64.0D,
             entity -> entity instanceof ServerPlayer player && isValidArenaTarget(player));
-        return nearest instanceof ServerPlayer nearestServerPlayer ? nearestServerPlayer : null;
+        if (nearest instanceof ServerPlayer nearestServerPlayer) {
+            return nearestServerPlayer;
+        }
+
+        LivingEntity lastHurt = getLastHurtByMob();
+        if (lastHurt != null && isValidCombatTarget(lastHurt)) {
+            return lastHurt;
+        }
+
+        return null;
     }
 
     private boolean isValidArenaTarget(ServerPlayer player) {
@@ -272,7 +293,42 @@ public final class DeepboundWardenEntity extends Warden {
             && insideArena(player.position(), ARENA_RADIUS);
     }
 
-    private void beginAggroRoar(ServerLevel serverLevel, ServerPlayer target) {
+    private boolean isValidCombatTarget(LivingEntity entity) {
+        if (entity == null || !entity.isAlive() || entity == this) return false;
+        if (entity instanceof Player player) {
+            return !player.isCreative() && !player.isSpectator() && insideArena(player.position(), ARENA_RADIUS);
+        }
+        return insideArena(entity.position(), ARENA_RADIUS + 4.0D);
+    }
+
+    private void wanderArena(ServerLevel level) {
+        if (arena.equals(BlockPos.ZERO)) return;
+
+        setAggressive(false);
+        setSprinting(false);
+        if (getPose() != Pose.SNIFFING && getPose() != Pose.ROARING) {
+            setPose(Pose.STANDING);
+        }
+
+        if (--wanderTimer <= 0 || getNavigation().isDone()) {
+            wanderTimer = 90 + random.nextInt(60);
+            double angle = random.nextDouble() * Math.PI * 2.0D;
+            double radius = 4.0D + random.nextDouble() * 18.0D;
+            double targetX = arena.getX() + 0.5D + Math.cos(angle) * radius;
+            double targetZ = arena.getZ() + 0.5D + Math.sin(angle) * radius;
+            double targetY = arena.getY() + 1.0D;
+
+            getNavigation().moveTo(targetX, targetY, targetZ, 0.75D);
+
+            if (random.nextFloat() < 0.35F) {
+                setPose(Pose.SNIFFING);
+                level.playSound(null, blockPosition(), SoundEvents.WARDEN_SNIFF, SoundSource.HOSTILE, 2.0F, 0.8F);
+                level.sendParticles(ParticleTypes.SCULK_SOUL, getX(), getY() + 2.0D, getZ(), 10, 0.5D, 0.5D, 0.5D, 0.02D);
+            }
+        }
+    }
+
+    private void beginAggroRoar(ServerLevel serverLevel, LivingEntity target) {
         cancelSkill();
         aggroRoarTicks = 54;
         skillCooldown = 65;
@@ -286,11 +342,13 @@ public final class DeepboundWardenEntity extends Warden {
             SoundSource.HOSTILE, 3.0F, 0.62F);
         serverLevel.sendParticles(ParticleTypes.SCULK_SOUL,
             getX(), getY() + 1.2D, getZ(), 80, 1.2D, 1.4D, 1.2D, 0.06D);
-        target.displayClientMessage(
-            Component.translatable("message.velorise_emc.deepbound_warden.detected"), true);
+        if (target instanceof ServerPlayer sp) {
+            sp.displayClientMessage(
+                Component.translatable("message.velorise_emc.deepbound_warden.detected"), true);
+        }
     }
 
-    private void tickAggroRoar(ServerLevel serverLevel, ServerPlayer target) {
+    private void tickAggroRoar(ServerLevel serverLevel, LivingEntity target) {
         getNavigation().stop();
         setSprinting(false);
         setPose(Pose.ROARING);
@@ -312,7 +370,7 @@ public final class DeepboundWardenEntity extends Warden {
         }
     }
 
-    private void tickCombatMovement(ServerLevel serverLevel, ServerPlayer target) {
+    private void tickCombatMovement(ServerLevel serverLevel, LivingEntity target) {
         double distanceSqr = distanceToSqr(target);
         getLookControl().setLookAt(target, 180.0F, 180.0F);
         lookAt(EntityAnchorArgument.Anchor.EYES, target.getEyePosition());
@@ -354,7 +412,7 @@ public final class DeepboundWardenEntity extends Warden {
         }
     }
 
-    private void beginRandomSkill(ServerLevel serverLevel, ServerPlayer target) {
+    private void beginRandomSkill(ServerLevel serverLevel, LivingEntity target) {
         int poolSize = phase + 2;
         int choice = random.nextInt(poolSize);
         Skill skill = skillFromChoice(choice);
@@ -376,7 +434,7 @@ public final class DeepboundWardenEntity extends Warden {
         };
     }
 
-    private void beginSkill(ServerLevel serverLevel, ServerPlayer target, Skill skill) {
+    private void beginSkill(ServerLevel serverLevel, LivingEntity target, Skill skill) {
         pendingSkill = skill;
         lastExecutedSkill = skill;
         skillTargetId = target.getUUID();
@@ -413,19 +471,21 @@ public final class DeepboundWardenEntity extends Warden {
             default -> { }
         }
 
-        target.displayClientMessage(
-            Component.translatable("warning.velorise_emc.deepbound_warden." + skill.name().toLowerCase(java.util.Locale.ROOT)), true);
+        if (target instanceof ServerPlayer sp) {
+            sp.displayClientMessage(
+                Component.translatable("warning.velorise_emc.deepbound_warden." + skill.name().toLowerCase(java.util.Locale.ROOT)), true);
+        }
         updateBossBarPresentation();
     }
 
-    private void tickSkillCharge(ServerLevel serverLevel, ServerPlayer currentTarget) {
+    private void tickSkillCharge(ServerLevel serverLevel, LivingEntity currentTarget) {
         getNavigation().stop();
         setSprinting(false);
         setPose(pendingSkill == Skill.SONIC_CONE || pendingSkill == Skill.FINAL_SCREAM
             ? Pose.ROARING : Pose.SNIFFING);
 
-        Player lockedPlayer = skillTargetId == null ? null : serverLevel.getPlayerByUUID(skillTargetId);
-        ServerPlayer lockedTarget = lockedPlayer instanceof ServerPlayer lockedServerPlayer ? lockedServerPlayer : null;
+        Entity lockedEntity = skillTargetId == null ? null : serverLevel.getEntity(skillTargetId);
+        LivingEntity lockedTarget = lockedEntity instanceof LivingEntity le && isValidCombatTarget(le) ? le : null;
         if (lockedTarget != null && lockedTarget.isAlive()
             && (pendingSkill == Skill.ECHO_GRAB || pendingSkill == Skill.SILENT_STEP)) {
             skillAim = lockedTarget.position();
@@ -510,19 +570,19 @@ public final class DeepboundWardenEntity extends Warden {
         }
     }
 
-    private void executeSkill(ServerLevel serverLevel, ServerPlayer currentTarget,
-                              ServerPlayer lockedTarget, Skill skill) {
+    private void executeSkill(ServerLevel serverLevel, LivingEntity currentTarget,
+                              LivingEntity lockedTarget, Skill skill) {
         switch (skill) {
             case SONIC_CONE -> sonicCone(serverLevel, skillAim);
             case RESONANCE_LINE -> resonanceLine(serverLevel, skillAim);
             case SCULK_ERUPTION -> sculkEruption(serverLevel, skillAim);
             case ECHO_GRAB -> {
-                ServerPlayer target = lockedTarget != null ? lockedTarget : currentTarget;
-                if (isValidArenaTarget(target)) echoGrab(serverLevel, target);
+                LivingEntity target = lockedTarget != null ? lockedTarget : currentTarget;
+                if (isValidCombatTarget(target)) echoGrab(serverLevel, target);
             }
             case SILENT_STEP -> {
-                ServerPlayer target = lockedTarget != null ? lockedTarget : currentTarget;
-                if (isValidArenaTarget(target)) silentStep(serverLevel, target);
+                LivingEntity target = lockedTarget != null ? lockedTarget : currentTarget;
+                if (isValidCombatTarget(target)) silentStep(serverLevel, target);
             }
             case FINAL_SCREAM -> finalScream(serverLevel);
             default -> { }
@@ -538,14 +598,14 @@ public final class DeepboundWardenEntity extends Warden {
         Vec3 origin = getEyePosition();
         Vec3 forward = horizontalDirection(origin, aim);
         double cosHalfAngle = Math.cos(Math.toRadians(36.0D));
-        for (ServerPlayer player : serverLevel.getEntitiesOfClass(ServerPlayer.class,
-            getBoundingBox().inflate(35.0D), this::isValidArenaTarget)) {
-            Vec3 offset = player.position().subtract(position());
+        for (LivingEntity entity : serverLevel.getEntitiesOfClass(LivingEntity.class,
+            getBoundingBox().inflate(35.0D), this::isValidCombatTarget)) {
+            Vec3 offset = entity.position().subtract(position());
             Vec3 horizontal = new Vec3(offset.x, 0.0D, offset.z);
             if (horizontal.lengthSqr() < 0.0001D || horizontal.lengthSqr() > 35.0D * 35.0D) continue;
             if (horizontal.normalize().dot(forward) < cosHalfAngle) continue;
-            player.hurt(serverLevel.damageSources().sonicBoom(this), 28.0F);
-            player.push(horizontal.x * 0.045D, 0.28D, horizontal.z * 0.045D);
+            entity.hurt(serverLevel.damageSources().sonicBoom(this), 28.0F);
+            entity.push(horizontal.x * 0.045D, 0.28D, horizontal.z * 0.045D);
         }
 
         particleRay(serverLevel, origin, forward, 35.0D, ParticleTypes.SONIC_BOOM, 9);
@@ -563,11 +623,11 @@ public final class DeepboundWardenEntity extends Warden {
             Math.min(start.x, end.x), Math.min(start.y, end.y) - 2.0D, Math.min(start.z, end.z),
             Math.max(start.x, end.x), Math.max(start.y, end.y) + 4.0D, Math.max(start.z, end.z)
         ).inflate(2.0D);
-        for (ServerPlayer player : serverLevel.getEntitiesOfClass(ServerPlayer.class, bounds,
-            this::isValidArenaTarget)) {
-            if (distanceToSegmentXZ(player.position(), start, end) > 1.8D) continue;
-            player.hurt(serverLevel.damageSources().mobAttack(this), 20.0F);
-            player.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 80, 0));
+        for (LivingEntity entity : serverLevel.getEntitiesOfClass(LivingEntity.class, bounds,
+            this::isValidCombatTarget)) {
+            if (distanceToSegmentXZ(entity.position(), start, end) > 1.8D) continue;
+            entity.hurt(serverLevel.damageSources().mobAttack(this), 20.0F);
+            entity.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 80, 0));
         }
     }
 
@@ -585,16 +645,16 @@ public final class DeepboundWardenEntity extends Warden {
             aim.x, aim.y + 0.8D, aim.z, 80, 4.5D, 1.2D, 4.5D, 0.08D);
         AABB area = new AABB(aim.x - 5.0D, aim.y - 2.0D, aim.z - 5.0D,
             aim.x + 5.0D, aim.y + 4.0D, aim.z + 5.0D);
-        for (ServerPlayer player : serverLevel.getEntitiesOfClass(ServerPlayer.class, area,
-            this::isValidArenaTarget)) {
-            if (player.position().distanceToSqr(aim) <= 25.0D) {
-                player.hurt(serverLevel.damageSources().mobAttack(this), 18.0F);
-                player.push(0.0D, 0.55D, 0.0D);
+        for (LivingEntity entity : serverLevel.getEntitiesOfClass(LivingEntity.class, area,
+            this::isValidCombatTarget)) {
+            if (entity.position().distanceToSqr(aim) <= 25.0D) {
+                entity.hurt(serverLevel.damageSources().mobAttack(this), 18.0F);
+                entity.push(0.0D, 0.55D, 0.0D);
             }
         }
     }
 
-    private void echoGrab(ServerLevel serverLevel, ServerPlayer target) {
+    private void echoGrab(ServerLevel serverLevel, LivingEntity target) {
         Vec3 pull = position().subtract(target.position());
         double length = Math.max(1.0D, Math.sqrt(pull.x * pull.x + pull.z * pull.z));
         target.push(pull.x / length * 1.25D, 0.20D, pull.z / length * 1.25D);
@@ -605,7 +665,7 @@ public final class DeepboundWardenEntity extends Warden {
             ParticleTypes.SCULK_SOUL, 28);
     }
 
-    private void silentStep(ServerLevel serverLevel, ServerPlayer target) {
+    private void silentStep(ServerLevel serverLevel, LivingEntity target) {
         Vec3 before = position();
         Vec3 safeDest = findSafeSilentStepDestination(serverLevel, target);
         serverLevel.playSound(null, blockPosition(), SoundEvents.WARDEN_DIG,
@@ -621,7 +681,7 @@ public final class DeepboundWardenEntity extends Warden {
         meleeCooldown = Math.min(meleeCooldown, 7);
     }
 
-    private Vec3 findSafeSilentStepDestination(ServerLevel level, ServerPlayer target) {
+    private Vec3 findSafeSilentStepDestination(ServerLevel level, LivingEntity target) {
         Vec3 look = target.getLookAngle();
         Vec3 horizontalLook = new Vec3(look.x, 0.0D, look.z);
         if (horizontalLook.lengthSqr() < 0.0001D) horizontalLook = new Vec3(0.0D, 0.0D, 1.0D);
@@ -665,13 +725,13 @@ public final class DeepboundWardenEntity extends Warden {
                 radius, 40, ParticleTypes.SCULK_SOUL);
         }
         double maxDistSqr = FINAL_SCREAM_RADIUS * FINAL_SCREAM_RADIUS;
-        for (ServerPlayer player : serverLevel.getEntitiesOfClass(ServerPlayer.class,
-            getBoundingBox().inflate(FINAL_SCREAM_RADIUS + 2.0D, 6.0D, FINAL_SCREAM_RADIUS + 2.0D), this::isValidArenaTarget)) {
-            double dx = player.getX() - getX();
-            double dz = player.getZ() - getZ();
+        for (LivingEntity entity : serverLevel.getEntitiesOfClass(LivingEntity.class,
+            getBoundingBox().inflate(FINAL_SCREAM_RADIUS + 2.0D, 6.0D, FINAL_SCREAM_RADIUS + 2.0D), this::isValidCombatTarget)) {
+            double dx = entity.getX() - getX();
+            double dz = entity.getZ() - getZ();
             if (dx * dx + dz * dz <= maxDistSqr) {
-                player.hurt(serverLevel.damageSources().sonicBoom(this), 32.0F);
-                player.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 140, 0));
+                entity.hurt(serverLevel.damageSources().sonicBoom(this), 32.0F);
+                entity.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 140, 0));
             }
         }
     }
@@ -765,11 +825,15 @@ public final class DeepboundWardenEntity extends Warden {
 
     private void updateInactivityDespawn() {
         if (!(level() instanceof ServerLevel serverLevel)) return;
+        if (!arena.equals(BlockPos.ZERO)) {
+            inactiveTicks = 0;
+            despawnAnimationTicks = 0;
+            allowedToDespawn = false;
+            return;
+        }
 
-        Player sensedPlayer = serverLevel.getNearestPlayer(getX(), getY(), getZ(), 48.0D,
-            entity -> entity instanceof ServerPlayer player && isValidArenaTarget(player));
-        ServerPlayer sensed = sensedPlayer instanceof ServerPlayer sensedServerPlayer ? sensedServerPlayer : null;
-        boolean active = sensed != null || hurtTime > 0 || pendingSkill != Skill.NONE || aggroRoarTicks > 0;
+        LivingEntity sensedTarget = findCombatTarget(serverLevel);
+        boolean active = sensedTarget != null || hurtTime > 0 || pendingSkill != Skill.NONE || aggroRoarTicks > 0;
         if (active) {
             inactiveTicks = 0;
             despawnAnimationTicks = 0;
@@ -807,23 +871,10 @@ public final class DeepboundWardenEntity extends Warden {
             cancelSkill();
             return;
         }
-        if (getTarget() instanceof Player player && !insideArena(player.position(), ARENA_RADIUS)) {
+        if (getTarget() != null && !isValidCombatTarget(getTarget())) {
             setTarget(null);
             engagedTargetId = null;
             getNavigation().stop();
-        }
-        boolean playerInside = level.getNearestPlayer(arena.getX() + 0.5D, arena.getY() + 1.0D,
-            arena.getZ() + 0.5D, ARENA_RADIUS,
-            entity -> entity instanceof Player player
-                && player.isAlive() && !player.isCreative() && !player.isSpectator()
-                && insideArena(player.position(), ARENA_RADIUS)) != null;
-        if (!playerInside && tickCount % 80 == 0) {
-            double angle = random.nextDouble() * Math.PI * 2.0D;
-            double radius = 5.0D + random.nextDouble() * 18.0D;
-            getNavigation().moveTo(arena.getX() + 0.5D + Math.cos(angle) * radius,
-                arena.getY() + 1.0D,
-                arena.getZ() + 0.5D + Math.sin(angle) * radius,
-                0.8D);
         }
     }
 
@@ -843,13 +894,22 @@ public final class DeepboundWardenEntity extends Warden {
     public boolean hurt(DamageSource source, float amount) {
         if (!(level() instanceof ServerLevel serverLevel)) return super.hurt(source, amount);
         boolean bypasses = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
-        if (!bypasses && source.getEntity() instanceof Player player
-            && !insideArena(player.position(), ARENA_RADIUS)) return false;
+        if (!bypasses && source.getEntity() instanceof LivingEntity attacker
+            && !insideArena(attacker.position(), ARENA_RADIUS)) return false;
 
         ensureHealthInitialized(serverLevel);
         inactiveTicks = 0;
         despawnAnimationTicks = 0;
         allowedToDespawn = false;
+
+        Entity directAttacker = source.getEntity();
+        if (directAttacker instanceof LivingEntity attacker && attacker != this && isValidCombatTarget(attacker)) {
+            retaliationTargetId = attacker.getUUID();
+            engagedTargetId = attacker.getUUID();
+            setTarget(attacker);
+            setLastHurtByMob(attacker);
+            increaseAngerAt(attacker, 150, false);
+        }
 
         if (bypasses && amount >= encounterHealth) {
             encounterHealth = 0.0F;
@@ -901,6 +961,7 @@ public final class DeepboundWardenEntity extends Warden {
         tag.putFloat("EncounterHealth", encounterHealth);
         tag.putFloat("EncounterMaxHealth", encounterMaxHealth);
         tag.putInt("LastPhase", lastPhase);
+        if (retaliationTargetId != null) tag.putUUID("RetaliationTargetId", retaliationTargetId);
     }
 
     @Override
@@ -913,6 +974,7 @@ public final class DeepboundWardenEntity extends Warden {
         if (tag.contains("EncounterHealth")) encounterHealth = tag.getFloat("EncounterHealth");
         if (tag.contains("EncounterMaxHealth")) encounterMaxHealth = tag.getFloat("EncounterMaxHealth");
         if (tag.contains("LastPhase")) lastPhase = tag.getInt("LastPhase");
+        if (tag.hasUUID("RetaliationTargetId")) retaliationTargetId = tag.getUUID("RetaliationTargetId");
         if (initializedHealth && encounterMaxHealth > 0.0F && encounterHealth > 0.0F) {
             setHealth(PHYSICAL_HEALTH_SEGMENT);
         } else {
