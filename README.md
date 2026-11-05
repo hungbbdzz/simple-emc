@@ -1,5 +1,18 @@
 # Velorise EMC
 
+<p align="center">
+  <a href="https://modrinth.com/mod/velorise-emc"><img src="https://img.shields.io/badge/Modrinth-Available_Now-00af5c?style=for-the-badge&logo=modrinth&logoColor=white" alt="Modrinth" /></a>
+  <a href="https://www.curseforge.com/minecraft/mc-mods/velorise-emc"><img src="https://img.shields.io/badge/CurseForge-Available_Now-f16436?style=for-the-badge&logo=curseforge&logoColor=white" alt="CurseForge" /></a>
+  <a href="https://github.com/hungbbdzz/simple-emc"><img src="https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" /></a>
+  <a href="https://github.com/sponsors/hungbbdzz"><img src="https://img.shields.io/badge/Sponsor-GitHub_Sponsors-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="GitHub Sponsors" /></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Release-v2.0.2-brightgreen.svg" alt="Release" />
+  <img src="https://img.shields.io/badge/Minecraft-1.21.1%20%7C%201.20.1-blue.svg" alt="Minecraft Versions" />
+  <img src="https://img.shields.io/badge/Loaders-NeoForge%20%7C%20Forge-orange.svg" alt="Mod Loaders" />
+</p>
+
 **More than transmutation — an entire progression system powered by EMC.**
 
 Velorise EMC combines personal EMC storage, equivalent exchange, World Tier progression, Resonant equipment, Core upgrades, Arcane Weapons, utility items, machines, world-generated EMC structures and a final endgame encounter into one connected system.
